@@ -37,6 +37,11 @@ public class JwtService implements IJwtService {
     }
 
     @Override
+    public String extractRolActivo(String token) {
+        return extractClaim(token, claims -> claims.get("rolActivo", String.class));
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
         return extractClaim(token, claims -> {
