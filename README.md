@@ -88,8 +88,6 @@ src/main/java/com/udea/business/
 | `GET`  | `/api/v1/negocios`                | Bearer JWT (Propietario) | Listado de negocios del propietario autenticado   |
 | `POST` | `/api/v1/servicios`               | Bearer JWT (Propietario) | Creación de un servicio para un negocio propio    |
 | `GET`  | `/api/v1/servicios/negocio/{id}`  | Bearer JWT             | Listado de servicios asociados a un negocio         |
-| `POST` | `/api/v1/negocios/{negocioId}/recursos` | Bearer JWT (Propietario, dueño del negocio) | Registro de un recurso físico (espacio o equipo) |
-| `GET`  | `/api/v1/negocios/{negocioId}/recursos` | Bearer JWT (Propietario, dueño del negocio) | Listado de recursos del negocio (puede ser vacío) |
 | `POST` | `/api/v1/servicios/{servicioId}/proveedores` | Bearer JWT (Propietario, dueño del negocio) | Vincula uno o varios proveedores a un servicio |
 | `GET`  | `/swagger-ui.html`                | Público                | Documentación interactiva Swagger UI                |
 | `GET`  | `/v3/api-docs`                    | Público                | Especificación OpenAPI v3 en JSON                   |
@@ -159,50 +157,9 @@ Content-Type: application/json
 }
 ```
 
-### Ejemplo — Registrar recurso físico
+> Los **recursos físicos** de los negocios (espacios y equipos) se gestionan en **Masters** (`/api/v1/negocios/{negocioId}/recursos`).
 
-**Request**
-```http
-POST /api/v1/negocios/5/recursos
-Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
-Content-Type: application/json
-
-{
-  "nombre": "Camilla de masajes",
-  "tipo": "Equipo",
-  "cantidad": 3,
-  "descripcion": "Camilla plegable"
-}
-```
-
-**Response 201 Created**
-```json
-{
-  "mensaje": "Recurso registrado correctamente.",
-  "recurso": {
-    "idRecurso": 1,
-    "negocioId": 5,
-    "nombre": "Camilla de masajes",
-    "tipo": "Equipo",
-    "cantidad": 3,
-    "descripcion": "Camilla plegable",
-    "estado": "Activo"
-  }
-}
-```
-
-| Código | Cuándo | `error` |
-|--------|--------|---------|
-| `400` | Cantidad no entera o fuera de 1..999 | `La cantidad debe ser un número entero entre 1 y 999.` |
-| `400` | Nombre vacío / tipo distinto de `Espacio` o `Equipo` | Mensaje de la validación |
-| `403` | El rol activo no es Propietario | `Solo un Propietario puede gestionar los recursos del negocio.` |
-| `403` | El negocio es de otro propietario | `No tienes permiso para gestionar los recursos de este negocio.` |
-| `404` | El negocio no existe | `Negocio no encontrado.` |
-| `409` | Nombre repetido en el negocio (sin distinguir mayúsculas ni tildes) | `Ya existe un recurso con este nombre en el negocio.` |
-
-`GET /api/v1/negocios/5/recursos` retorna `{"mensaje": ..., "recursos": [...]}`; si no hay recursos, `recursos` es `[]` y el mensaje es `Este negocio aún no tiene recursos registrados.`
-
-> **Rol activo**: si el JWT trae el claim opcional `rolActivo`, el filtro de seguridad solo concede ese rol (y solo si está en `roles`). Así, una cuenta Propietario + Proveedor que opera como Proveedor no puede gestionar recursos. Si el token no trae `rolActivo`, se conservan todos los roles.
+> **Rol activo**: si el JWT trae el claim opcional `rolActivo`, el filtro de seguridad solo concede ese rol (y solo si está en `roles`). Así, una cuenta Propietario + Proveedor que opera como Proveedor no puede asignar proveedores. Si el token no trae `rolActivo`, se conservan todos los roles.
 
 ### Ejemplo — Asignar proveedores a un servicio
 
@@ -356,9 +313,6 @@ docker run -p 8083:8083 --env-file .env business
 | Unicidad de `identificacionFiscal` | Un NIT/identificación fiscal no puede estar registrado en más de un negocio. Lanza `RecursoDuplicadoException`. |
 | Pertenencia del negocio | Solo el propietario autenticado (claim `sub` del JWT) puede crear servicios en sus propios negocios. |
 | Unicidad del nombre de servicio | Dentro de un mismo negocio, el nombre de un servicio debe ser único. Lanza `RecursoDuplicadoException`. |
-| Unicidad del nombre de recurso | Dentro de un mismo negocio, el nombre de un recurso es único ignorando mayúsculas, tildes y espacios extra (columna `nombre_normalizado` + restricción única `negocio_id, nombre_normalizado`). Se permite repetir en otro negocio. |
-| Cantidad de recurso | Entero estrictamente entre 1 y 999. |
-| Gestión de recursos | Solo el rol activo Propietario, y solo sobre negocios propios (403 en caso contrario). |
 | Estado del servicio | Derivado: `No Asignado` con 0 proveedores, `Asignado` con 1 o más. |
 | Asignación de proveedores | Transaccional (todos o ninguno); sin duplicados por servicio; solo el Propietario dueño del negocio. |
 | Estado inicial del servicio | Todo servicio se crea con estado `"No Asignado"` hasta ser asignado a un horario de disponibilidad. |
