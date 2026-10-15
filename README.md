@@ -90,6 +90,7 @@ src/main/java/com/udea/business/
 | `GET`  | `/api/v1/servicios/negocio/{id}`  | Bearer JWT             | Listado de servicios asociados a un negocio         |
 | `POST` | `/api/v1/negocios/{negocioId}/recursos` | Bearer JWT (Propietario, dueño del negocio) | Registro de un recurso físico (espacio o equipo) |
 | `GET`  | `/api/v1/negocios/{negocioId}/recursos` | Bearer JWT (Propietario, dueño del negocio) | Listado de recursos del negocio (puede ser vacío) |
+| `POST` | `/api/v1/servicios/{servicioId}/proveedores` | Bearer JWT (Propietario, dueño del negocio) | Vincula uno o varios proveedores a un servicio |
 | `GET`  | `/swagger-ui.html`                | Público                | Documentación interactiva Swagger UI                |
 | `GET`  | `/v3/api-docs`                    | Público                | Especificación OpenAPI v3 en JSON                   |
 
@@ -203,6 +204,44 @@ Content-Type: application/json
 
 > **Rol activo**: si el JWT trae el claim opcional `rolActivo`, el filtro de seguridad solo concede ese rol (y solo si está en `roles`). Así, una cuenta Propietario + Proveedor que opera como Proveedor no puede gestionar recursos. Si el token no trae `rolActivo`, se conservan todos los roles.
 
+### Ejemplo — Asignar proveedores a un servicio
+
+Los ids se obtienen del directorio de proveedores de **Masters** (`GET /api/v1/proveedores/directorio`).
+
+```http
+POST /api/v1/servicios/12/proveedores
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/json
+
+{ "proveedorIds": [11, 13] }
+```
+
+**Response 201 Created**
+```json
+{
+  "mensaje": "Servicio asignado a 2 proveedor(es)",
+  "idServicio": 12,
+  "estadoServicio": "Asignado",
+  "proveedoresAsignados": [
+    { "idUsuario": 11, "nombre": "Carlos", "apellido": "Ruiz", "especialidad": "Estilista", "tipoDocumento": "CC", "numeroDocumento": "123456" },
+    { "idUsuario": 13, "nombre": "Diego", "apellido": "Salas", "especialidad": "Barbero", "tipoDocumento": "CC", "numeroDocumento": "777" }
+  ],
+  "totalProveedores": 2
+}
+```
+
+La operación es transaccional: si algún proveedor no es válido o ya estaba vinculado, no se guarda ninguno.
+
+| Código | Cuándo | `error` |
+|--------|--------|---------|
+| `400` | Lista vacía o ausente | `Selecciona al menos un proveedor para asignar.` |
+| `400` | Proveedor repetido en la solicitud | `No repitas el mismo proveedor en la solicitud.` |
+| `400` | Algún id no es un proveedor activo | `Estos usuarios no son proveedores activos de la plataforma: 12, 15.` |
+| `403` | El rol activo no es Propietario | `Solo un Propietario puede asignar proveedores a los servicios.` |
+| `403` | El servicio es de un negocio ajeno | `No tienes permiso para asignar proveedores a este servicio.` |
+| `404` | El servicio no existe | `Servicio no encontrado.` |
+| `409` | Algún proveedor ya está vinculado | `Ya está vinculado a este servicio: Carlos Ruiz (CC 123456).` |
+
 ## Modelo de datos
 
 ### Negocio
@@ -230,6 +269,19 @@ Content-Type: application/json
 | `duracion_minutos`  | `INTEGER`       | NOT NULL                        | Duración estimada en minutos                      |
 | `precio`            | `DECIMAL(12,2)` | NOT NULL                        | Precio del servicio en la moneda del negocio      |
 | `estado`            | `VARCHAR(20)`   | NOT NULL, default `No Asignado` | Estado del servicio                               |
+
+### ServicioProveedor (`servicio_proveedor`)
+
+| Campo                  | Tipo          | Restricciones                | Descripción                              |
+|------------------------|---------------|------------------------------|------------------------------------------|
+| `id_servicio_proveedor`| `INTEGER`     | PK, auto-generado            | Identificador de la vinculación          |
+| `servicio_id`          | `INTEGER`     | NOT NULL, FK → servicio      | Servicio vinculado                       |
+| `proveedor_id`         | `INTEGER`     | NOT NULL, FK → perfil_proveedor | Proveedor (id de usuario) que presta el servicio |
+| `fecha_asignacion`     | `TIMESTAMPTZ` | NOT NULL                     | Momento de la vinculación                |
+
+Restricción única `(servicio_id, proveedor_id)`: un proveedor no puede quedar vinculado dos veces al mismo servicio.
+
+> Business lee `usuario`, `rol`, `asignacion_rol`, `tipo_documento` y `perfil_proveedor` como entidades de **solo lectura** (`@Immutable`), únicamente para validar que los ids asignados sean proveedores activos. Esas tablas las administra Masters, que también ofrece el directorio de búsqueda.
 
 ## Configuración y variables de entorno
 
@@ -307,6 +359,8 @@ docker run -p 8083:8083 --env-file .env business
 | Unicidad del nombre de recurso | Dentro de un mismo negocio, el nombre de un recurso es único ignorando mayúsculas, tildes y espacios extra (columna `nombre_normalizado` + restricción única `negocio_id, nombre_normalizado`). Se permite repetir en otro negocio. |
 | Cantidad de recurso | Entero estrictamente entre 1 y 999. |
 | Gestión de recursos | Solo el rol activo Propietario, y solo sobre negocios propios (403 en caso contrario). |
+| Estado del servicio | Derivado: `No Asignado` con 0 proveedores, `Asignado` con 1 o más. |
+| Asignación de proveedores | Transaccional (todos o ninguno); sin duplicados por servicio; solo el Propietario dueño del negocio. |
 | Estado inicial del servicio | Todo servicio se crea con estado `"No Asignado"` hasta ser asignado a un horario de disponibilidad. |
 | Estado inicial del negocio | Todo negocio se crea con estado `"Activo"`. |
 
