@@ -84,10 +84,6 @@ src/main/java/com/udea/business/
 | Método | Ruta                              | Seguridad              | Descripción                                         |
 |--------|-----------------------------------|------------------------|-----------------------------------------------------|
 | `GET`  | `/api/v1/health`                  | Público                | Health check de la API                              |
-| `POST` | `/api/v1/negocios`                | Bearer JWT (Propietario) | Registro de un nuevo negocio                      |
-| `GET`  | `/api/v1/negocios`                | Bearer JWT (Propietario) | Listado de negocios del propietario autenticado   |
-| `POST` | `/api/v1/servicios`               | Bearer JWT (Propietario) | Creación de un servicio para un negocio propio    |
-| `GET`  | `/api/v1/servicios/negocio/{id}`  | Bearer JWT             | Listado de servicios asociados a un negocio         |
 | `POST` | `/api/v1/servicios/{servicioId}/proveedores` | Bearer JWT (Propietario, dueño del negocio) | Vincula uno o varios proveedores a un servicio |
 | `GET`  | `/swagger-ui.html`                | Público                | Documentación interactiva Swagger UI                |
 | `GET`  | `/v3/api-docs`                    | Público                | Especificación OpenAPI v3 en JSON                   |
