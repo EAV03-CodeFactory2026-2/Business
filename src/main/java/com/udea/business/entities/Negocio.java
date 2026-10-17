@@ -1,14 +1,17 @@
 package com.udea.business.entities;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.Immutable;
 
+/**
+ * Vista de solo lectura de la tabla negocio (administrada por Masters).
+ * Business la consulta únicamente para verificar a qué propietario pertenece el negocio de un servicio.
+ */
 @Entity
+@Immutable
 @Table(name = "negocio")
-@Data
+@Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -24,20 +27,5 @@ public class Negocio {
 
     @Column(name = "nombre_negocio", nullable = false, length = 250)
     private String nombreNegocio;
-
-    @Column(name = "direccion_negocio", nullable = false, length = 250)
-    private String direccionNegocio;
-
-    @Column(length = 20)
-    private String telefono;
-
-    @Column(name = "identificacion_fiscal", nullable = false, length = 20, unique = true)
-    private String identificacionFiscal;
-
-    @Column(name = "moneda_codigo_iso", nullable = false, length = 3)
-    private String monedaCodigoIso;
-
-    @Column(nullable = false, length = 20)
-    @Builder.Default
-    private String estado = "Activo";
 }
+
