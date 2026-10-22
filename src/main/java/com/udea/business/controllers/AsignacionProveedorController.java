@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Optional;
+
 @RestController
 @RequestMapping("/api/v1/servicios/{servicioId}/proveedores")
 @RequiredArgsConstructor
@@ -36,7 +38,7 @@ public class AsignacionProveedorController {
     public ResponseEntity<AsignacionProveedoresResponse> asignar(@PathVariable("servicioId") Integer servicioId,
                                                                  @RequestBody(required = false) AsignarProveedoresRequest request) {
         AsignacionProveedoresResponse respuesta = asignacionProveedorService.asignar(
-                servicioId, request == null ? null : request.getProveedorIds());
+                servicioId, Optional.ofNullable(request).map(AsignarProveedoresRequest::getProveedorIds).orElse(null));
         return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
     }
 }

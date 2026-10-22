@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 
 /**
  * Vinculación entre un servicio del catálogo y un proveedor que lo presta.
@@ -41,8 +42,6 @@ public class ServicioProveedor {
 
     @PrePersist
     void alCrear() {
-        if (fechaAsignacion == null) {
-            fechaAsignacion = OffsetDateTime.now();
-        }
+        fechaAsignacion = Objects.requireNonNullElseGet(fechaAsignacion, OffsetDateTime::now);
     }
 }
