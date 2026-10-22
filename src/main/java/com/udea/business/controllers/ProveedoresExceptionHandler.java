@@ -20,37 +20,32 @@ import java.util.Map;
 @RestControllerAdvice(assignableTypes = AsignacionProveedorController.class)
 public class ProveedoresExceptionHandler {
 
-    @ExceptionHandler(AccesoDenegadoException.class)
-    public ResponseEntity<Map<String, String>> accesoDenegado(AccesoDenegadoException e) {
-        return error(HttpStatus.FORBIDDEN, e.getMessage());
-    }
+    private static final Map<Class<? extends Exception>, HttpStatus> ESTADOS = Map.of(
+            AccesoDenegadoException.class, HttpStatus.FORBIDDEN,
+            RecursoNoEncontradoException.class, HttpStatus.NOT_FOUND,
+            RecursoDuplicadoException.class, HttpStatus.CONFLICT,
+            SolicitudInvalidaException.class, HttpStatus.BAD_REQUEST
+    );
 
-    @ExceptionHandler(RecursoNoEncontradoException.class)
-    public ResponseEntity<Map<String, String>> noEncontrado(RecursoNoEncontradoException e) {
-        return error(HttpStatus.NOT_FOUND, e.getMessage());
-    }
-
-    @ExceptionHandler(RecursoDuplicadoException.class)
-    public ResponseEntity<Map<String, String>> duplicado(RecursoDuplicadoException e) {
-        return error(HttpStatus.CONFLICT, e.getMessage());
-    }
-
-    @ExceptionHandler(SolicitudInvalidaException.class)
-    public ResponseEntity<Map<String, String>> solicitudInvalida(SolicitudInvalidaException e) {
-        return error(HttpStatus.BAD_REQUEST, e.getMessage());
+    @ExceptionHandler({
+            AccesoDenegadoException.class,
+            RecursoNoEncontradoException.class,
+            RecursoDuplicadoException.class,
+            SolicitudInvalidaException.class
+    })
+    public ResponseEntity<Map<String, String>> errorDeNegocio(RuntimeException e) {
+        return ResponseEntity.status(ESTADOS.get(e.getClass())).body(Map.of("error", e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Map<String, String>> parametroInvalido(MethodArgumentTypeMismatchException e) {
-        return error(HttpStatus.BAD_REQUEST, "El parámetro '" + e.getName() + "' tiene un formato inválido.");
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "El parámetro '" + e.getName() + "' tiene un formato inválido."));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<Map<String, String>> cuerpoInvalido(HttpMessageNotReadableException e) {
-        return error(HttpStatus.BAD_REQUEST, "El cuerpo de la solicitud no tiene un formato válido.");
-    }
-
-    private ResponseEntity<Map<String, String>> error(HttpStatus status, String mensaje) {
-        return ResponseEntity.status(status).body(Map.of("error", mensaje));
+    public ResponseEntity<Map<String, String>> cuerpoInvalido() {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "El cuerpo de la solicitud no tiene un formato válido."));
     }
 }
