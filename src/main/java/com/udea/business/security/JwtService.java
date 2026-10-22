@@ -2,6 +2,7 @@ package com.udea.business.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -10,72 +11,50 @@ import javax.crypto.SecretKey;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Objects;
 
 @Service
 public class JwtService implements IJwtService {
 
-    private final String secret;
+    private final SecretKey signingKey;
 
     public JwtService(@Value("${app.jwt.secret}") String secret) {
-        this.secret = secret;
-    }
-
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = io.jsonwebtoken.io.Decoders.BASE64.decode(secret);
-        return Keys.hmacShaKeyFor(keyBytes);
+        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
     @Override
     public String extractUserId(String token) {
-        return extractClaim(token, Claims::getSubject);
+        return extractAllClaims(token).getSubject();
     }
 
     @Override
     public String extractEmail(String token) {
-        return extractClaim(token, claims -> claims.get("email", String.class));
+        return extractAllClaims(token).get("email", String.class);
     }
 
     @Override
     public String extractRolActivo(String token) {
-        return extractClaim(token, claims -> claims.get("rolActivo", String.class));
+        return extractAllClaims(token).get("rolActivo", String.class);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
-        return extractClaim(token, claims -> {
-            List<?> roles = claims.get("roles", List.class);
-            if (roles == null) return Collections.emptyList();
-            return (List<String>) roles;
-        });
+        return Objects.requireNonNullElse(extractAllClaims(token).get("roles", List.class), Collections.emptyList());
     }
 
     @Override
     public boolean isTokenValid(String token) {
         try {
-            return !isTokenExpired(token);
+            return extractAllClaims(token).getExpiration().after(new Date());
         } catch (Exception e) {
             return false;
         }
     }
 
-    private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
-
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(getSigningKey())
+                .verifyWith(signingKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
