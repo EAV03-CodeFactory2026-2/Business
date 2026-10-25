@@ -4,6 +4,7 @@ import com.udea.business.exceptions.AccesoDenegadoException;
 import com.udea.business.exceptions.RecursoDuplicadoException;
 import com.udea.business.exceptions.RecursoNoEncontradoException;
 import com.udea.business.exceptions.SolicitudInvalidaException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -17,6 +18,7 @@ import java.util.Map;
  * Traduce las excepciones de la asignación de proveedores a respuestas HTTP.
  * Se limita a ese controlador para no cambiar el comportamiento de los existentes.
  */
+@Slf4j
 @RestControllerAdvice(assignableTypes = AsignacionProveedorController.class)
 public class ProveedoresExceptionHandler {
 
@@ -34,7 +36,12 @@ public class ProveedoresExceptionHandler {
             SolicitudInvalidaException.class
     })
     public ResponseEntity<Map<String, String>> errorDeNegocio(RuntimeException e) {
-        return ResponseEntity.status(ESTADOS.get(e.getClass())).body(Map.of("error", e.getMessage()));
+        HttpStatus status = ESTADOS.entrySet().stream()
+                .filter(entry -> entry.getKey().isInstance(e))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(HttpStatus.BAD_REQUEST);
+        return ResponseEntity.status(status).body(Map.of("error", e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -47,5 +54,12 @@ public class ProveedoresExceptionHandler {
     public ResponseEntity<Map<String, String>> cuerpoInvalido() {
         return ResponseEntity.badRequest()
                 .body(Map.of("error", "El cuerpo de la solicitud no tiene un formato válido."));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> errorInesperado(Exception e) {
+        log.error("Error inesperado en el servidor: ", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Ha ocurrido un error inesperado en el servidor."));
     }
 }
