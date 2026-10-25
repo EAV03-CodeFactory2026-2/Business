@@ -6,4 +6,5 @@ package com.udea.business.security;
 public interface IUsuarioActual {
     Integer getId();
     boolean esPropietario();
+    boolean esProveedor();
 }

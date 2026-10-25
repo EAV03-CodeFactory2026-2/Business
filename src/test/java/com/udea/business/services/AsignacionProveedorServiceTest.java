@@ -40,6 +40,7 @@ import static com.udea.business.services.AsignacionProveedorService.MSG_SERVICIO
 import static com.udea.business.services.AsignacionProveedorService.MSG_SIN_PERMISO;
 import static com.udea.business.services.AsignacionProveedorService.MSG_SIN_SELECCION;
 import static com.udea.business.services.AsignacionProveedorService.MSG_SOLO_PROPIETARIO;
+import static com.udea.business.services.AsignacionProveedorService.MSG_SOLO_PROVEEDOR;
 import static com.udea.business.services.AsignacionProveedorService.MSG_YA_VINCULADOS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -388,6 +389,55 @@ class AsignacionProveedorServiceTest {
         AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class,
                 () -> service.consultarProveedoresAsignados(SERVICIO_ID));
         assertEquals(MSG_SIN_PERMISO, ex.getMessage());
+        verifyNoInteractions(servicioProveedorRepository);
+    }
+
+    @Test
+    void consultarMisServiciosRetornaServiciosDelProveedorAutenticado() {
+        Integer proveedorId = 15;
+        when(usuarioActual.esProveedor()).thenReturn(true);
+        when(usuarioActual.getId()).thenReturn(proveedorId);
+
+        Servicio servicio = servicio(PROPIETARIO_ID);
+        PerfilProveedor proveedor = perfil(proveedorId, "Carlos", "Gomez", "2001");
+        ServicioProveedor sp = ServicioProveedor.builder()
+                .idServicioProveedor(100)
+                .servicio(servicio)
+                .proveedor(proveedor)
+                .build();
+
+        when(servicioProveedorRepository.findByProveedorIdConServicioYNegocio(proveedorId))
+                .thenReturn(List.of(sp));
+
+        List<com.udea.business.controllers.DTOs.ServicioAsignadoResponse> resultado = service.consultarMisServicios();
+
+        assertEquals(1, resultado.size());
+        assertEquals(SERVICIO_ID, resultado.get(0).getIdServicio());
+        assertEquals("Masaje relajante", resultado.get(0).getNombre());
+        assertEquals(1, resultado.get(0).getIdNegocio());
+        assertEquals("Spa Central", resultado.get(0).getNombreNegocio());
+    }
+
+    @Test
+    void consultarMisServiciosRetornaListaVaciaCuandoNoTieneAsignaciones() {
+        Integer proveedorId = 15;
+        when(usuarioActual.esProveedor()).thenReturn(true);
+        when(usuarioActual.getId()).thenReturn(proveedorId);
+        when(servicioProveedorRepository.findByProveedorIdConServicioYNegocio(proveedorId))
+                .thenReturn(List.of());
+
+        List<com.udea.business.controllers.DTOs.ServicioAsignadoResponse> resultado = service.consultarMisServicios();
+
+        assertTrue(resultado.isEmpty());
+    }
+
+    @Test
+    void consultarMisServiciosFallaCuandoNoTieneRolProveedor() {
+        when(usuarioActual.esProveedor()).thenReturn(false);
+
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class,
+                () -> service.consultarMisServicios());
+        assertEquals(MSG_SOLO_PROVEEDOR, ex.getMessage());
         verifyNoInteractions(servicioProveedorRepository);
     }
 

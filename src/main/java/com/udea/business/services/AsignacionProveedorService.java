@@ -2,6 +2,7 @@ package com.udea.business.services;
 
 import com.udea.business.controllers.DTOs.AsignacionProveedoresResponse;
 import com.udea.business.controllers.DTOs.ProveedorAsignadoResponse;
+import com.udea.business.controllers.DTOs.ServicioAsignadoResponse;
 import com.udea.business.entities.EstadoServicio;
 import com.udea.business.entities.PerfilProveedor;
 import com.udea.business.entities.RolPlataforma;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 public class AsignacionProveedorService implements IAsignacionProveedorService {
 
     public static final String MSG_SOLO_PROPIETARIO = "Solo un Propietario puede asignar proveedores a los servicios.";
+    public static final String MSG_SOLO_PROVEEDOR = "Solo un Proveedor puede consultar sus servicios asignados.";
     public static final String MSG_SIN_PERMISO = "No tienes permiso para asignar proveedores a este servicio.";
     public static final String MSG_SERVICIO_NO_ENCONTRADO = "Servicio no encontrado.";
     public static final String MSG_SIN_SELECCION = "Selecciona al menos un proveedor para asignar.";
@@ -107,6 +109,19 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
         List<ServicioProveedor> asignaciones = servicioProveedorRepository.findByServicioIdConDetalle(servicioId);
         return asignaciones.stream()
                 .map(sp -> ProveedorAsignadoResponse.desde(sp.getProveedor()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServicioAsignadoResponse> consultarMisServicios() {
+        if (!usuarioActual.esProveedor()) {
+            throw new AccesoDenegadoException(MSG_SOLO_PROVEEDOR);
+        }
+        Integer proveedorId = usuarioActual.getId();
+        List<ServicioProveedor> asignaciones = servicioProveedorRepository.findByProveedorIdConServicioYNegocio(proveedorId);
+        return asignaciones.stream()
+                .map(sp -> ServicioAsignadoResponse.desde(sp.getServicio()))
                 .toList();
     }
 

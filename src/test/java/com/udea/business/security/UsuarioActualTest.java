@@ -160,6 +160,27 @@ class UsuarioActualTest {
         assertEquals(MSG_NO_IDENTIFICADO, ex.getMessage());
     }
 
+    @Test
+    void esProveedorDevuelveTrueCuandoTieneRolProveedor() {
+        autenticar("12", "ROLE_PROVEEDOR");
+
+        assertTrue(usuarioActual.esProveedor());
+    }
+
+    @Test
+    void esProveedorDevuelveFalseCuandoTieneOtroRol() {
+        autenticar("12", "ROLE_PROPIETARIO");
+
+        assertFalse(usuarioActual.esProveedor());
+    }
+
+    @Test
+    void esProveedorLanzaAccesoDenegadoCuandoNoHayAutenticacion() {
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, usuarioActual::esProveedor);
+
+        assertEquals(MSG_NO_IDENTIFICADO, ex.getMessage());
+    }
+
     private void autenticar(String userId, String... roles) {
         List<SimpleGrantedAuthority> authorities = Arrays.stream(roles)
                 .map(SimpleGrantedAuthority::new)

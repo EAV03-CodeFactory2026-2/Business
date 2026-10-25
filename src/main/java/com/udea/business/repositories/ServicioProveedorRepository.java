@@ -25,4 +25,10 @@ public interface ServicioProveedorRepository extends JpaRepository<ServicioProve
             + "JOIN FETCH p.tipoDocumento "
             + "WHERE sp.servicio.idServicio = :servicioId")
     List<ServicioProveedor> findByServicioIdConDetalle(@Param("servicioId") Integer servicioId);
+
+    @Query("SELECT sp FROM ServicioProveedor sp "
+            + "JOIN FETCH sp.servicio s "
+            + "JOIN FETCH s.negocio n "
+            + "WHERE sp.proveedor.usuarioId = :proveedorId")
+    List<ServicioProveedor> findByProveedorIdConServicioYNegocio(@Param("proveedorId") Integer proveedorId);
 }

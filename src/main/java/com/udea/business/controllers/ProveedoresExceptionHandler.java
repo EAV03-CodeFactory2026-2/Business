@@ -19,7 +19,7 @@ import java.util.Map;
  * Se limita a ese controlador para no cambiar el comportamiento de los existentes.
  */
 @Slf4j
-@RestControllerAdvice(assignableTypes = AsignacionProveedorController.class)
+@RestControllerAdvice(assignableTypes = {AsignacionProveedorController.class, MisServiciosController.class})
 public class ProveedoresExceptionHandler {
 
     private static final Map<Class<? extends Exception>, HttpStatus> ESTADOS = Map.of(

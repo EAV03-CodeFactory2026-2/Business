@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 public class UsuarioActual implements IUsuarioActual {
 
     private static final String ROL_PROPIETARIO = "ROLE_PROPIETARIO";
+    private static final String ROL_PROVEEDOR = "ROLE_PROVEEDOR";
     private static final String MSG_NO_IDENTIFICADO = "No fue posible identificar al usuario autenticado.";
 
     @Override
@@ -36,6 +37,17 @@ public class UsuarioActual implements IUsuarioActual {
         return auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(ROL_PROPIETARIO::equalsIgnoreCase);
+    }
+
+    @Override
+    public boolean esProveedor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (!estaAutenticadoValido(auth)) {
+            throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
+        }
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(ROL_PROVEEDOR::equalsIgnoreCase);
     }
 
     private boolean estaAutenticadoValido(Authentication auth) {
