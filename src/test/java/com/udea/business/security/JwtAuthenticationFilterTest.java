@@ -158,9 +158,7 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        Authentication auth = autenticacion();
-        assertEquals("12", auth.getName());
-        assertTrue(auth.getAuthorities().isEmpty());
+        assertNull(autenticacion());
         verify(chain).doFilter(request, response);
     }
 
@@ -188,9 +186,7 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        Authentication auth = autenticacion();
-        assertEquals("20", auth.getName());
-        assertTrue(auth.getAuthorities().isEmpty());
+        assertNull(autenticacion());
         verify(chain).doFilter(request, response);
     }
 

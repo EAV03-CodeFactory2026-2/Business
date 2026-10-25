@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class UsuarioActualTest {
 
@@ -56,7 +57,11 @@ class UsuarioActualTest {
 
     @Test
     void getIdLanzaAccesoDenegadoCuandoLaAutenticacionNoTieneNombre() {
-        SecurityContextHolder.getContext().setAuthentication(mock(Authentication.class));
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        when(auth.getPrincipal()).thenReturn("usuario");
+        when(auth.getName()).thenReturn(null);
+        SecurityContextHolder.getContext().setAuthentication(auth);
 
         AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, usuarioActual::getId);
 
@@ -66,6 +71,17 @@ class UsuarioActualTest {
     @Test
     void getIdLanzaAccesoDenegadoCuandoElUsuarioEsAnonimo() {
         SecurityContextHolder.getContext().setAuthentication(anonimo());
+
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, usuarioActual::getId);
+
+        assertEquals(MSG_NO_IDENTIFICADO, ex.getMessage());
+    }
+
+    @Test
+    void getIdLanzaAccesoDenegadoCuandoNoEstaAutenticado() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(false);
+        SecurityContextHolder.getContext().setAuthentication(auth);
 
         AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, usuarioActual::getId);
 
@@ -118,16 +134,27 @@ class UsuarioActualTest {
     }
 
     @Test
-    void esPropietarioDevuelveFalseCuandoElUsuarioEsAnonimo() {
+    void esPropietarioLanzaAccesoDenegadoCuandoElUsuarioEsAnonimo() {
         SecurityContextHolder.getContext().setAuthentication(anonimo());
 
-        boolean propietario = usuarioActual.esPropietario();
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, usuarioActual::esPropietario);
 
-        assertFalse(propietario);
+        assertEquals(MSG_NO_IDENTIFICADO, ex.getMessage());
     }
 
     @Test
     void esPropietarioLanzaAccesoDenegadoCuandoNoHayAutenticacion() {
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, usuarioActual::esPropietario);
+
+        assertEquals(MSG_NO_IDENTIFICADO, ex.getMessage());
+    }
+
+    @Test
+    void esPropietarioLanzaAccesoDenegadoCuandoNoEstaAutenticado() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(false);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
         AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, usuarioActual::esPropietario);
 
         assertEquals(MSG_NO_IDENTIFICADO, ex.getMessage());

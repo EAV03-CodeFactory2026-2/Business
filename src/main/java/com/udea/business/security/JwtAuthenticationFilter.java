@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -58,17 +60,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             .map(r -> new SimpleGrantedAuthority("ROLE_" + r.toUpperCase()))
                             .toList();
 
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userId,
-                            null,
-                            authorities
-                    );
+                    if (!authorities.isEmpty()) {
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                userId,
+                                null,
+                                authorities
+                        );
 
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    } else {
+                        log.warn("El token JWT para el usuario {} no posee roles válidos o el rol activo no coincide.", userId);
+                    }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("Fallo al autenticar token JWT: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);
