@@ -90,6 +90,26 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProveedorAsignadoResponse> consultarProveedoresAsignados(Integer servicioId) {
+        if (!usuarioActual.esPropietario()) {
+            throw new AccesoDenegadoException(MSG_SOLO_PROPIETARIO);
+        }
+        Servicio servicio = servicioRepository.findById(servicioId).orElse(null);
+        if (servicio == null) {
+            throw new RecursoNoEncontradoException(MSG_SERVICIO_NO_ENCONTRADO);
+        }
+        if (!servicio.getNegocio().getPropietarioId().equals(usuarioActual.getId())) {
+            throw new AccesoDenegadoException(MSG_SIN_PERMISO);
+        }
+
+        List<ServicioProveedor> asignaciones = servicioProveedorRepository.findByServicioIdConDetalle(servicioId);
+        return asignaciones.stream()
+                .map(sp -> ProveedorAsignadoResponse.desde(sp.getProveedor()))
+                .toList();
+    }
+
     /** Valida la selección y devuelve los proveedores en el mismo orden en que se pidieron. */
     private List<PerfilProveedor> resolverProveedores(Integer servicioId, List<Integer> proveedorIds) {
         if (CollectionUtils.isEmpty(proveedorIds)) {

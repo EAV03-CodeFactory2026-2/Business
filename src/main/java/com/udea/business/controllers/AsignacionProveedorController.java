@@ -41,4 +41,20 @@ public class AsignacionProveedorController {
                 servicioId, Optional.ofNullable(request).map(AsignarProveedoresRequest::getProveedorIds).orElse(null));
         return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
     }
+
+    @Operation(
+            summary = "Consultar proveedores asignados a un servicio",
+            description = "Recupera la lista de proveedores asociados al servicio indicado. "
+                    + "Requiere rol Propietario y ser dueño del negocio del servicio."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Proveedores asignados consultados exitosamente."),
+            @ApiResponse(responseCode = "403", description = "El rol activo no es Propietario o el servicio no es de sus negocios."),
+            @ApiResponse(responseCode = "404", description = "El servicio no existe.")
+    })
+    @GetMapping
+    public ResponseEntity<java.util.List<com.udea.business.controllers.DTOs.ProveedorAsignadoResponse>> consultarProveedores(
+            @PathVariable("servicioId") Integer servicioId) {
+        return ResponseEntity.ok(asignacionProveedorService.consultarProveedoresAsignados(servicioId));
+    }
 }

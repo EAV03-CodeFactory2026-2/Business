@@ -31,6 +31,7 @@ import static com.udea.business.services.AsignacionProveedorService.MSG_YA_VINCU
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -96,6 +97,48 @@ class AsignacionProveedorControllerTest {
                 .andExpect(jsonPath("$.proveedoresAsignados[1].numeroDocumento").value("1002"));
 
         verify(service).asignar(SERVICIO_ID, List.of(12, 15));
+    }
+
+    @Test
+    void consultarProveedoresRetorna200ConLista() throws Exception {
+        ProveedorAsignadoResponse ana = ProveedorAsignadoResponse.builder()
+                .idUsuario(12)
+                .nombre("Ana")
+                .apellido("Gomez")
+                .especialidad("Masajes")
+                .tipoDocumento("CC")
+                .numeroDocumento("1001")
+                .build();
+        when(service.consultarProveedoresAsignados(SERVICIO_ID)).thenReturn(List.of(ana));
+
+        mockMvc.perform(get(URL, SERVICIO_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].idUsuario").value(12))
+                .andExpect(jsonPath("$[0].nombre").value("Ana"))
+                .andExpect(jsonPath("$[0].especialidad").value("Masajes"));
+
+        verify(service).consultarProveedoresAsignados(SERVICIO_ID);
+    }
+
+    @Test
+    void consultarProveedoresRetorna403CuandoNoEsPropietarioODueno() throws Exception {
+        when(service.consultarProveedoresAsignados(SERVICIO_ID))
+                .thenThrow(new AccesoDenegadoException(MSG_SIN_PERMISO));
+
+        mockMvc.perform(get(URL, SERVICIO_ID))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value(MSG_SIN_PERMISO));
+    }
+
+    @Test
+    void consultarProveedoresRetorna404CuandoServicioNoExiste() throws Exception {
+        when(service.consultarProveedoresAsignados(SERVICIO_ID))
+                .thenThrow(new RecursoNoEncontradoException(MSG_SERVICIO_NO_ENCONTRADO));
+
+        mockMvc.perform(get(URL, SERVICIO_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value(MSG_SERVICIO_NO_ENCONTRADO));
     }
 
     @Test

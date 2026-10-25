@@ -328,6 +328,77 @@ class AsignacionProveedorServiceTest {
         verify(servicioRepository, never()).save(any());
     }
 
+    @Test
+    void consultarProveedoresAsignadosRetornaListaCorrectamente() {
+        Servicio servicio = servicioDelPropietarioAutenticado();
+        PerfilProveedor ana = perfil(12, "Ana", "Gomez", "1001");
+        ServicioProveedor sp = ServicioProveedor.builder()
+                .idServicioProveedor(1)
+                .servicio(servicio)
+                .proveedor(ana)
+                .build();
+
+        when(servicioProveedorRepository.findByServicioIdConDetalle(SERVICIO_ID)).thenReturn(List.of(sp));
+
+        List<ProveedorAsignadoResponse> resultado = service.consultarProveedoresAsignados(SERVICIO_ID);
+
+        assertEquals(1, resultado.size());
+        assertEquals(12, resultado.get(0).getIdUsuario());
+        assertEquals("Ana", resultado.get(0).getNombre());
+        assertEquals("Gomez", resultado.get(0).getApellido());
+        assertEquals("CC", resultado.get(0).getTipoDocumento());
+        assertEquals("1001", resultado.get(0).getNumeroDocumento());
+    }
+
+    @Test
+    void consultarProveedoresAsignadosRetornaVacioSiNoTieneProveedores() {
+        servicioDelPropietarioAutenticado();
+        when(servicioProveedorRepository.findByServicioIdConDetalle(SERVICIO_ID)).thenReturn(List.of());
+
+        List<ProveedorAsignadoResponse> resultado = service.consultarProveedoresAsignados(SERVICIO_ID);
+
+        assertTrue(resultado.isEmpty());
+    }
+
+    @Test
+    void consultarProveedoresAsignadosFallaSiNoEsPropietario() {
+        when(usuarioActual.esPropietario()).thenReturn(false);
+
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class,
+                () -> service.consultarProveedoresAsignados(SERVICIO_ID));
+        assertEquals(MSG_SOLO_PROPIETARIO, ex.getMessage());
+        verifyNoInteractions(servicioRepository, servicioProveedorRepository);
+    }
+
+    @Test
+    void consultarProveedoresAsignadosFallaSiServicioNoExiste() {
+        when(usuarioActual.esPropietario()).thenReturn(true);
+        when(servicioRepository.findById(SERVICIO_ID)).thenReturn(Optional.empty());
+
+        RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class,
+                () -> service.consultarProveedoresAsignados(SERVICIO_ID));
+        assertEquals(MSG_SERVICIO_NO_ENCONTRADO, ex.getMessage());
+        verifyNoInteractions(servicioProveedorRepository);
+    }
+
+    @Test
+    void consultarProveedoresAsignadosFallaSiNoEsSuNegocio() {
+        Servicio servicio = servicioDeOtroPropietario();
+
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class,
+                () -> service.consultarProveedoresAsignados(SERVICIO_ID));
+        assertEquals(MSG_SIN_PERMISO, ex.getMessage());
+        verifyNoInteractions(servicioProveedorRepository);
+    }
+
+    private Servicio servicioDeOtroPropietario() {
+        Servicio servicio = servicio(PROPIETARIO_ID + 99);
+        when(usuarioActual.esPropietario()).thenReturn(true);
+        when(servicioRepository.findById(SERVICIO_ID)).thenReturn(Optional.of(servicio));
+        when(usuarioActual.getId()).thenReturn(PROPIETARIO_ID);
+        return servicio;
+    }
+
     private Servicio servicioDelPropietarioAutenticado() {
         Servicio servicio = servicio(PROPIETARIO_ID);
         when(usuarioActual.esPropietario()).thenReturn(true);
