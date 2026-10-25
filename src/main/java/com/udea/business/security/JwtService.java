@@ -46,7 +46,8 @@ public class JwtService implements IJwtService {
     @Override
     public boolean isTokenValid(String token) {
         try {
-            return extractAllClaims(token).getExpiration().after(new Date());
+            Date expiration = extractAllClaims(token).getExpiration();
+            return expiration != null && expiration.after(new Date());
         } catch (Exception e) {
             return false;
         }

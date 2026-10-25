@@ -9,7 +9,6 @@ import com.udea.business.exceptions.RecursoDuplicadoException;
 import com.udea.business.exceptions.RecursoNoEncontradoException;
 import com.udea.business.exceptions.SolicitudInvalidaException;
 import com.udea.business.services.IAsignacionProveedorService;
-import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,8 +28,6 @@ import static com.udea.business.services.AsignacionProveedorService.MSG_SERVICIO
 import static com.udea.business.services.AsignacionProveedorService.MSG_SIN_PERMISO;
 import static com.udea.business.services.AsignacionProveedorService.MSG_SIN_SELECCION;
 import static com.udea.business.services.AsignacionProveedorService.MSG_YA_VINCULADOS;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -171,14 +168,13 @@ class AsignacionProveedorControllerTest {
     }
 
     @Test
-    void asignarNoTraduceLasExcepcionesNoControladasDelService() {
+    void asignarRetorna500CuandoOcurreExcepcionNoControlada() throws Exception {
         IllegalStateException fallo = new IllegalStateException("detalle interno");
         when(service.asignar(SERVICIO_ID, List.of(12))).thenThrow(fallo);
-        MockHttpServletRequestBuilder peticion = conProveedores(12);
 
-        ServletException ex = assertThrows(ServletException.class, () -> mockMvc.perform(peticion));
-
-        assertSame(fallo, ex.getCause());
+        mockMvc.perform(conProveedores(12))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("Ha ocurrido un error inesperado en el servidor."));
     }
 
     private MockHttpServletRequestBuilder conProveedores(Integer... ids) {
