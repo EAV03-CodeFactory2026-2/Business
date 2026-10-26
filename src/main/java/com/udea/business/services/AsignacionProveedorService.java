@@ -54,16 +54,7 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
     @Override
     @Transactional
     public AsignacionProveedoresResponse asignar(Integer servicioId, List<Integer> proveedorIds) {
-        if (!usuarioActual.esPropietario()) {
-            throw new AccesoDenegadoException(MSG_SOLO_PROPIETARIO);
-        }
-        Servicio servicio = servicioRepository.findById(servicioId).orElse(null);
-        if (servicio == null) {
-            throw new RecursoNoEncontradoException(MSG_SERVICIO_NO_ENCONTRADO);
-        }
-        if (!servicio.getNegocio().getPropietarioId().equals(usuarioActual.getId())) {
-            throw new AccesoDenegadoException(MSG_SIN_PERMISO);
-        }
+        Servicio servicio = obtenerServicioPropio(servicioId);
 
         List<PerfilProveedor> proveedores = resolverProveedores(servicioId, proveedorIds);
         List<ServicioProveedor> vinculaciones = proveedores.stream()
@@ -95,6 +86,13 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
     @Override
     @Transactional(readOnly = true)
     public List<ProveedorAsignadoResponse> consultarProveedoresAsignados(Integer servicioId) {
+        obtenerServicioPropio(servicioId);
+        return servicioProveedorRepository.findByServicioIdConDetalle(servicioId).stream()
+                .map(sp -> ProveedorAsignadoResponse.desde(sp.getProveedor()))
+                .toList();
+    }
+
+    private Servicio obtenerServicioPropio(Integer servicioId) {
         if (!usuarioActual.esPropietario()) {
             throw new AccesoDenegadoException(MSG_SOLO_PROPIETARIO);
         }
@@ -105,11 +103,7 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
         if (!servicio.getNegocio().getPropietarioId().equals(usuarioActual.getId())) {
             throw new AccesoDenegadoException(MSG_SIN_PERMISO);
         }
-
-        List<ServicioProveedor> asignaciones = servicioProveedorRepository.findByServicioIdConDetalle(servicioId);
-        return asignaciones.stream()
-                .map(sp -> ProveedorAsignadoResponse.desde(sp.getProveedor()))
-                .toList();
+        return servicio;
     }
 
     @Override

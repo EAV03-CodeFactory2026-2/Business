@@ -36,11 +36,7 @@ public class ProveedoresExceptionHandler {
             SolicitudInvalidaException.class
     })
     public ResponseEntity<Map<String, String>> errorDeNegocio(RuntimeException e) {
-        HttpStatus status = ESTADOS.entrySet().stream()
-                .filter(entry -> entry.getKey().isInstance(e))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse(HttpStatus.BAD_REQUEST);
+        HttpStatus status = ESTADOS.getOrDefault(e.getClass(), HttpStatus.BAD_REQUEST);
         return ResponseEntity.status(status).body(Map.of("error", e.getMessage()));
     }
 

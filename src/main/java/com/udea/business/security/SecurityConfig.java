@@ -49,11 +49,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        List<String> origins = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .map(origin -> origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin)
-                .filter(origin -> !origin.isEmpty())
-                .toList();
+        List<String> origins = new java.util.ArrayList<>();
+        for (String origin : allowedOrigins.split(",")) {
+            String o = origin.trim();
+            if (!o.isEmpty()) {
+                origins.add(o.endsWith("/") ? o.substring(0, o.length() - 1) : o);
+            }
+        }
         configuration.setAllowedOriginPatterns(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

@@ -16,12 +16,8 @@ public class UsuarioActual implements IUsuarioActual {
 
     @Override
     public Integer getId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!estaAutenticadoValido(auth)) {
-            throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
-        }
         try {
-            return Integer.valueOf(auth.getName());
+            return Integer.valueOf(autenticacionValida().getName());
         } catch (NumberFormatException e) {
             throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
         }
@@ -29,31 +25,28 @@ public class UsuarioActual implements IUsuarioActual {
 
     @Override
     public boolean esPropietario() {
-        // JwtAuthenticationFilter solo concede el rol activo del token, así que esto respeta el rol con que se opera.
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!estaAutenticadoValido(auth)) {
-            throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(ROL_PROPIETARIO::equalsIgnoreCase);
+        return tieneRol(ROL_PROPIETARIO);
     }
 
     @Override
     public boolean esProveedor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!estaAutenticadoValido(auth)) {
-            throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(ROL_PROVEEDOR::equalsIgnoreCase);
+        return tieneRol(ROL_PROVEEDOR);
     }
 
-    private boolean estaAutenticadoValido(Authentication auth) {
-        return auth != null
-                && auth.isAuthenticated()
-                && !(auth instanceof AnonymousAuthenticationToken)
-                && !"anonymousUser".equals(auth.getPrincipal());
+    private boolean tieneRol(String rol) {
+        for (GrantedAuthority ga : autenticacionValida().getAuthorities()) {
+            if (rol.equalsIgnoreCase(ga.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Authentication autenticacionValida() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken || "anonymousUser".equals(auth.getPrincipal())) {
+            throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
+        }
+        return auth;
     }
 }
