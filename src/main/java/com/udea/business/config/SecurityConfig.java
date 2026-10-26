@@ -1,5 +1,6 @@
-package com.udea.business.security;
+package com.udea.business.config;
 
+import com.udea.business.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

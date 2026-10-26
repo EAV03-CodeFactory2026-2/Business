@@ -1,5 +1,6 @@
-package com.udea.business.security;
+package com.udea.business.config;
 
+import com.udea.business.security.JwtAuthenticationFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
