@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 @Data
 @Builder
@@ -24,6 +25,7 @@ public class ServicioAsignadoResponse {
     private String nombreNegocio;
 
     public static ServicioAsignadoResponse desde(Servicio servicio) {
+        var negocio = Optional.ofNullable(servicio.getNegocio());
         return ServicioAsignadoResponse.builder()
                 .idServicio(servicio.getIdServicio())
                 .nombre(servicio.getNombre())
@@ -31,8 +33,8 @@ public class ServicioAsignadoResponse {
                 .duracionMinutos(servicio.getDuracionMinutos())
                 .precio(servicio.getPrecio())
                 .estado(servicio.getEstado())
-                .idNegocio(servicio.getNegocio() != null ? servicio.getNegocio().getIdNegocio() : null)
-                .nombreNegocio(servicio.getNegocio() != null ? servicio.getNegocio().getNombreNegocio() : null)
+                .idNegocio(negocio.map(n -> n.getIdNegocio()).orElse(null))
+                .nombreNegocio(negocio.map(n -> n.getNombreNegocio()).orElse(null))
                 .build();
     }
 }

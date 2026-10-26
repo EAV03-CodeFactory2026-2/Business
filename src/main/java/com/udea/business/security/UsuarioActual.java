@@ -7,6 +7,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 public class UsuarioActual implements IUsuarioActual {
 
@@ -18,7 +20,7 @@ public class UsuarioActual implements IUsuarioActual {
     public Integer getId() {
         try {
             return Integer.valueOf(autenticacionValida().getName());
-        } catch (NumberFormatException e) {
+        } catch (Exception e) {
             throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
         }
     }
@@ -34,19 +36,17 @@ public class UsuarioActual implements IUsuarioActual {
     }
 
     private boolean tieneRol(String rol) {
-        for (GrantedAuthority ga : autenticacionValida().getAuthorities()) {
-            if (rol.equalsIgnoreCase(ga.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
+        return autenticacionValida().getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(rol::equalsIgnoreCase);
     }
 
     private Authentication autenticacionValida() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken || "anonymousUser".equals(auth.getPrincipal())) {
-            throw new AccesoDenegadoException(MSG_NO_IDENTIFICADO);
-        }
-        return auth;
+        return Optional.ofNullable(SecurityContextHolder.getContext().getAuthentication())
+                .filter(Authentication::isAuthenticated)
+                .filter(a -> !(a instanceof AnonymousAuthenticationToken))
+                .filter(a -> !"anonymousUser".equals(a.getPrincipal()))
+                .filter(a -> a.getName() != null)
+                .orElseThrow(() -> new AccesoDenegadoException(MSG_NO_IDENTIFICADO));
     }
 }

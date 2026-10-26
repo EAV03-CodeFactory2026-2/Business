@@ -47,25 +47,19 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
     private final ServicioProveedorRepository servicioProveedorRepository;
     private final IUsuarioActual usuarioActual;
 
-    /**
-     * Vincula el servicio con todos los proveedores indicados o con ninguno:
-     * si alguno no es válido o ya estaba vinculado, no se guarda nada.
-     */
     @Override
     @Transactional
     public AsignacionProveedoresResponse asignar(Integer servicioId, List<Integer> proveedorIds) {
         Servicio servicio = obtenerServicioPropio(servicioId);
-
         List<PerfilProveedor> proveedores = resolverProveedores(servicioId, proveedorIds);
         List<ServicioProveedor> vinculaciones = proveedores.stream()
                 .map(p -> ServicioProveedor.builder().servicio(servicio).proveedor(p).build())
                 .toList();
+
         try {
             servicioProveedorRepository.saveAllAndFlush(vinculaciones);
         } catch (DataIntegrityViolationException e) {
-            // Otra petición vinculó el mismo proveedor al mismo tiempo; la restricción única lo frena.
-            throw new RecursoDuplicadoException(
-                    String.format(MSG_YA_VINCULADOS, "uno de los proveedores seleccionados"));
+            throw new RecursoDuplicadoException(String.format(MSG_YA_VINCULADOS, "uno de los proveedores seleccionados"));
         }
 
         long totalProveedores = servicioProveedorRepository.countByServicioIdServicio(servicioId);
@@ -76,9 +70,7 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
                 .mensaje(String.format(MSG_ASIGNADO, vinculaciones.size()))
                 .idServicio(servicioId)
                 .estadoServicio(servicio.getEstado())
-                .proveedoresAsignados(proveedores.stream()
-                        .map(ProveedorAsignadoResponse::desde)
-                        .toList())
+                .proveedoresAsignados(proveedores.stream().map(ProveedorAsignadoResponse::desde).toList())
                 .totalProveedores(totalProveedores)
                 .build();
     }
@@ -93,45 +85,28 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
     }
 
     private Servicio obtenerServicioPropio(Integer servicioId) {
-        if (!usuarioActual.esPropietario()) {
-            throw new AccesoDenegadoException(MSG_SOLO_PROPIETARIO);
-        }
-        Servicio servicio = servicioRepository.findById(servicioId).orElse(null);
-        if (servicio == null) {
-            throw new RecursoNoEncontradoException(MSG_SERVICIO_NO_ENCONTRADO);
-        }
-        if (!servicio.getNegocio().getPropietarioId().equals(usuarioActual.getId())) {
-            throw new AccesoDenegadoException(MSG_SIN_PERMISO);
-        }
+        validar(!usuarioActual.esPropietario(), new AccesoDenegadoException(MSG_SOLO_PROPIETARIO));
+        Servicio servicio = servicioRepository.findById(servicioId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(MSG_SERVICIO_NO_ENCONTRADO));
+        validar(!servicio.getNegocio().getPropietarioId().equals(usuarioActual.getId()), new AccesoDenegadoException(MSG_SIN_PERMISO));
         return servicio;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ServicioAsignadoResponse> consultarMisServicios() {
-        if (!usuarioActual.esProveedor()) {
-            throw new AccesoDenegadoException(MSG_SOLO_PROVEEDOR);
-        }
-        Integer proveedorId = usuarioActual.getId();
-        List<ServicioProveedor> asignaciones = servicioProveedorRepository.findByProveedorIdConServicioYNegocio(proveedorId);
-        return asignaciones.stream()
+        validar(!usuarioActual.esProveedor(), new AccesoDenegadoException(MSG_SOLO_PROVEEDOR));
+        return servicioProveedorRepository.findByProveedorIdConServicioYNegocio(usuarioActual.getId()).stream()
                 .map(sp -> ServicioAsignadoResponse.desde(sp.getServicio()))
                 .toList();
     }
 
-    /** Valida la selección y devuelve los proveedores en el mismo orden en que se pidieron. */
     private List<PerfilProveedor> resolverProveedores(Integer servicioId, List<Integer> proveedorIds) {
-        if (CollectionUtils.isEmpty(proveedorIds)) {
-            throw new SolicitudInvalidaException(MSG_SIN_SELECCION);
-        }
-        // contains(null) lanza NullPointerException en listas inmutables (List.of), por eso se usa el stream.
-        if (proveedorIds.stream().anyMatch(Objects::isNull)) {
-            throw new SolicitudInvalidaException(MSG_ID_INVALIDO);
-        }
+        validar(CollectionUtils.isEmpty(proveedorIds), new SolicitudInvalidaException(MSG_SIN_SELECCION));
+        validar(proveedorIds.stream().anyMatch(Objects::isNull), new SolicitudInvalidaException(MSG_ID_INVALIDO));
+
         Set<Integer> ids = new LinkedHashSet<>(proveedorIds);
-        if (ids.size() != proveedorIds.size()) {
-            throw new SolicitudInvalidaException(MSG_REPETIDOS);
-        }
+        validar(ids.size() != proveedorIds.size(), new SolicitudInvalidaException(MSG_REPETIDOS));
 
         Map<Integer, PerfilProveedor> encontrados = perfilProveedorRepository
                 .buscarActivosPorIds(ids, RolPlataforma.PROVEEDOR).stream()
@@ -141,20 +116,20 @@ public class AsignacionProveedorService implements IAsignacionProveedorService {
                 .filter(Predicate.not(encontrados::containsKey))
                 .map(String::valueOf)
                 .collect(Collectors.joining(", "));
-        if (!invalidos.isEmpty()) {
-            throw new SolicitudInvalidaException(String.format(MSG_NO_SON_PROVEEDORES, invalidos));
-        }
+        validar(!invalidos.isEmpty(), new SolicitudInvalidaException(String.format(MSG_NO_SON_PROVEEDORES, invalidos)));
 
-        List<Integer> yaVinculados = servicioProveedorRepository.buscarProveedoresYaVinculados(
-                servicioId, List.copyOf(ids));
-        if (!yaVinculados.isEmpty()) {
-            String detalle = yaVinculados.stream()
-                    .map(encontrados::get)
-                    .map(PerfilProveedor::getIdentificacion)
-                    .collect(Collectors.joining(", "));
-            throw new RecursoDuplicadoException(String.format(MSG_YA_VINCULADOS, detalle));
-        }
+        List<Integer> yaVinculados = servicioProveedorRepository.buscarProveedoresYaVinculados(servicioId, List.copyOf(ids));
+        validar(!yaVinculados.isEmpty(), new RecursoDuplicadoException(String.format(MSG_YA_VINCULADOS, yaVinculados.stream()
+                .map(encontrados::get)
+                .map(PerfilProveedor::getIdentificacion)
+                .collect(Collectors.joining(", ")))));
 
         return ids.stream().map(encontrados::get).toList();
+    }
+
+    private void validar(boolean condicion, RuntimeException excepcion) {
+        if (condicion) {
+            throw excepcion;
+        }
     }
 }
