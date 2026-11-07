@@ -14,12 +14,12 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.util.Map;
 
-/**
- * Traduce las excepciones de la asignación de proveedores a respuestas HTTP.
- * Se limita a ese controlador para no cambiar el comportamiento de los existentes.
- */
 @Slf4j
-@RestControllerAdvice(assignableTypes = {AsignacionProveedorController.class, MisServiciosController.class})
+@RestControllerAdvice(assignableTypes = {
+        AsignacionProveedorController.class,
+        MisServiciosController.class,
+        ServicioRecursoController.class
+})
 public class ProveedoresExceptionHandler {
 
     private static final Map<Class<? extends Exception>, HttpStatus> ESTADOS = Map.of(
