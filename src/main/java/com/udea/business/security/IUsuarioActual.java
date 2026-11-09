@@ -7,4 +7,6 @@ public interface IUsuarioActual {
     Integer getId();
     boolean esPropietario();
     boolean esProveedor();
+    boolean esCliente();
 }
+
