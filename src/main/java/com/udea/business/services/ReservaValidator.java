@@ -146,13 +146,12 @@ public class ReservaValidator implements IReservaValidator {
             return;
         }
 
-        Integer negocioId = (servicio.getNegocio() != null && servicio.getNegocio().getIdNegocio() != null)
-                ? servicio.getNegocio().getIdNegocio()
-                : recursosRequeridos.get(0).getNegocioId();
+        Integer negocioId = servicio.getNegocio().getIdNegocio();
 
-        List<Reserva> solapadas = negocioId != null
-                ? reservaRepository.findOverlappingConfirmedByNegocio(negocioId, inicio, fin, EstadoReserva.CONFIRMADA)
-                : reservaRepository.findOverlappingConfirmed(inicio, fin, EstadoReserva.CONFIRMADA);
+        List<Reserva> solapadas = reservaRepository.findOverlappingConfirmedByNegocio(
+                negocioId, inicio, fin, EstadoReserva.CONFIRMADA
+        );
+
         if (solapadas.isEmpty()) {
             for (ServicioRecurso sr : recursosRequeridos) {
                 RecursoNegocio recurso = sr.getRecursoNegocio();

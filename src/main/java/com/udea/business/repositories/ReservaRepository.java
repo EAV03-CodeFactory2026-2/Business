@@ -38,13 +38,6 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
             @Param("fin") LocalDateTime fin,
             @Param("estado") EstadoReserva estado);
 
-    @Query("SELECT r FROM Reserva r WHERE r.estado = :estado "
-            + "AND r.inicio < :fin AND r.fin > :inicio")
-    List<Reserva> findOverlappingConfirmed(
-            @Param("inicio") LocalDateTime inicio,
-            @Param("fin") LocalDateTime fin,
-            @Param("estado") EstadoReserva estado);
-
     @Query("SELECT r FROM Reserva r "
             + "JOIN r.servicio s "
             + "WHERE s.negocio.idNegocio = :negocioId "
