@@ -84,6 +84,7 @@ public class ReservaService implements IReservaService {
         // Validar que no haya cruces para el proveedor ni para el cliente
         validator.validarDisponibilidadProveedor(proveedorId, inicio, fin);
         validator.validarDisponibilidadCliente(clienteId, inicio, fin);
+        validator.validarDisponibilidadRecursos(servicio, inicio, fin);
 
         String nombreServicio = servicio.getNombre();
         BigDecimal precioServicio = servicio.getPrecio();

@@ -39,6 +39,7 @@ public class DisponibilidadService implements IDisponibilidadService {
     private final ServicioProveedorRepository servicioProveedorRepository;
     private final FranjaServicioRepository franjaServicioRepository;
     private final ReservaRepository reservaRepository;
+    private final IReservaValidator validator;
     private final Clock clock;
 
     @Override
@@ -113,7 +114,9 @@ public class DisponibilidadService implements IDisponibilidadService {
                         idProveedor, slotInicioDt, slotFinDt, EstadoReserva.CONFIRMADA
                 ).isEmpty();
 
-                if (!ocupado) {
+                boolean recursosDisponibles = validator.hayRecursosDisponibles(servicio, slotInicioDt, slotFinDt);
+
+                if (!ocupado && recursosDisponibles) {
                     disponibles.add(FranjaDisponibleResponse.builder()
                             .idFranja(franja.getIdFranja())
                             .servicioId(servicio.getIdServicio())
