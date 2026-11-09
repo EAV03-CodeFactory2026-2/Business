@@ -1,8 +1,10 @@
 package com.udea.business.services;
 
+import com.udea.business.controllers.DTOs.CancelarReservaRequest;
 import com.udea.business.controllers.DTOs.CrearReservaRequest;
 import com.udea.business.controllers.DTOs.ReservaResponse;
 import com.udea.business.entities.*;
+import com.udea.business.exceptions.AccesoDenegadoException;
 import com.udea.business.exceptions.RecursoDuplicadoException;
 import com.udea.business.exceptions.RecursoNoEncontradoException;
 import com.udea.business.exceptions.SolicitudInvalidaException;
@@ -14,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -25,6 +29,7 @@ import java.util.List;
 public class ReservaService implements IReservaService {
 
     public static final String MSG_RESERVA_CONFIRMADA = "Reserva confirmada exitosamente.";
+    public static final String MSG_RESERVA_CANCELADA = "Tu reserva fue cancelada.";
     public static final String MSG_RESERVA_NO_ENCONTRADA = "Reserva no encontrada.";
     public static final String MSG_SERVICIO_NO_ENCONTRADO = "Servicio no encontrado.";
     public static final String MSG_FRANJA_RESERVADA = "Esta franja acaba de ser reservada. Elige otra.";
@@ -34,13 +39,16 @@ public class ReservaService implements IReservaService {
     private static final DateTimeFormatter FORMATO_FECHA_ES = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final IReservaValidator validator;
+    private final ICancelacionReservaValidator cancelacionValidator;
     private final ICodigoReservaGenerator codigoReservaGenerator;
     private final IUsuarioActual usuarioActual;
     private final ReservaRepository reservaRepository;
+    private final CancelacionReservaRepository cancelacionReservaRepository;
     private final ServicioRepository servicioRepository;
     private final PerfilProveedorRepository perfilProveedorRepository;
     private final UsuarioPlataformaRepository usuarioPlataformaRepository;
     private final FranjaServicioRepository franjaServicioRepository;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -88,6 +96,8 @@ public class ReservaService implements IReservaService {
                 ? request.getNotas().trim()
                 : null;
 
+        OffsetDateTime ahoraOffset = OffsetDateTime.now(clock);
+
         Reserva nuevaReserva = Reserva.builder()
                 .codigoReserva(codigoReserva)
                 .clienteId(clienteId)
@@ -101,8 +111,8 @@ public class ReservaService implements IReservaService {
                 .precioServicio(precioServicio)
                 .monedaCodigoIso(monedaCodigoIso)
                 .estado(EstadoReserva.CONFIRMADA)
-                .fechaCreacion(OffsetDateTime.now())
-                .fechaActualizacion(OffsetDateTime.now())
+                .fechaCreacion(ahoraOffset)
+                .fechaActualizacion(ahoraOffset)
                 .build();
 
         Reserva guardada;
@@ -113,6 +123,53 @@ public class ReservaService implements IReservaService {
         }
 
         return construirRespuesta(guardada, servicio, franja.getProveedor(), clienteId);
+    }
+
+    @Override
+    @Transactional
+    public ReservaResponse cancelarReserva(Integer idReserva, CancelarReservaRequest request) {
+        if (idReserva == null) {
+            throw new SolicitudInvalidaException("El identificador de la reserva es obligatorio.");
+        }
+
+        Reserva reserva = reservaRepository.findById(idReserva)
+                .orElseThrow(() -> new RecursoNoEncontradoException(MSG_RESERVA_NO_ENCONTRADA));
+
+        LocalDateTime ahora = LocalDateTime.now(clock);
+
+        cancelacionValidator.validarCancelacion(reserva, usuarioActual, request, ahora);
+
+        OffsetDateTime fechaCancelacion = OffsetDateTime.now(clock);
+        String motivoLimpio = (request != null && request.getMotivo() != null && !request.getMotivo().trim().isEmpty())
+                ? request.getMotivo().trim()
+                : null;
+
+        reserva.setEstado(EstadoReserva.CANCELADA);
+        reserva.setFechaActualizacion(fechaCancelacion);
+
+        CancelacionReserva cancelacion = CancelacionReserva.builder()
+                .reservaId(reserva.getIdReserva())
+                .reserva(reserva)
+                .canceladaPor(usuarioActual.getId())
+                .fechaCancelacion(fechaCancelacion)
+                .motivo(motivoLimpio)
+                .estado(EstadoReserva.CANCELADA)
+                .nuevo(true)
+                .build();
+
+        cancelacionReservaRepository.save(cancelacion);
+        reserva.setCancelacion(cancelacion);
+        Reserva guardada = reservaRepository.save(reserva);
+
+        Servicio servicio = servicioRepository.findById(guardada.getServicioId()).orElse(null);
+        PerfilProveedor proveedor = perfilProveedorRepository.findById(guardada.getProveedorId()).orElse(null);
+
+        ReservaResponse respuesta = construirRespuesta(guardada, servicio, proveedor, guardada.getClienteId());
+        respuesta.setMensaje(MSG_RESERVA_CANCELADA);
+        respuesta.setFechaCancelacion(fechaCancelacion);
+        respuesta.setMotivoCancelacion(motivoLimpio);
+
+        return respuesta;
     }
 
     @Override
@@ -147,6 +204,35 @@ public class ReservaService implements IReservaService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReservaResponse> consultarAgendaProveedor(Integer proveedorId, LocalDate fecha) {
+        if (proveedorId == null) {
+            throw new SolicitudInvalidaException("El identificador del proveedor es obligatorio.");
+        }
+        if (fecha == null) {
+            throw new SolicitudInvalidaException("La fecha es obligatoria para consultar la agenda.");
+        }
+
+        LocalDateTime inicioDia = fecha.atStartOfDay();
+        LocalDateTime finDia = fecha.atTime(LocalTime.MAX);
+
+        return reservaRepository.findConfirmedByProveedorAndRango(
+                proveedorId, inicioDia, finDia, EstadoReserva.CONFIRMADA
+        ).stream()
+        .map(this::mapearDesdeEntidad)
+        .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReservaResponse> consultarMiAgenda(LocalDate fecha) {
+        if (usuarioActual == null || !usuarioActual.esProveedor()) {
+            throw new AccesoDenegadoException("Solo los proveedores pueden consultar su agenda.");
+        }
+        return consultarAgendaProveedor(usuarioActual.getId(), fecha);
+    }
+
     private ReservaResponse construirRespuesta(Reserva reserva, Servicio servicio, PerfilProveedor proveedor, Integer clienteId) {
         String nombreNegocio = (servicio != null && servicio.getNegocio() != null)
                 ? servicio.getNegocio().getNombreNegocio()
@@ -171,8 +257,12 @@ public class ReservaService implements IReservaService {
                 reserva.getFin()
         );
 
+        String mensajeEstado = reserva.getEstado() == EstadoReserva.CANCELADA
+                ? MSG_RESERVA_CANCELADA
+                : MSG_RESERVA_CONFIRMADA;
+
         return ReservaResponse.builder()
-                .mensaje(MSG_RESERVA_CONFIRMADA)
+                .mensaje(mensajeEstado)
                 .idReserva(reserva.getIdReserva())
                 .codigoReserva(reserva.getCodigoReserva())
                 .estado(reserva.getEstado() != null ? reserva.getEstado().getNombre() : EstadoReserva.CONFIRMADA.getNombre())
@@ -199,7 +289,19 @@ public class ReservaService implements IReservaService {
     private ReservaResponse mapearDesdeEntidad(Reserva reserva) {
         Servicio servicio = servicioRepository.findById(reserva.getServicioId()).orElse(null);
         PerfilProveedor proveedor = perfilProveedorRepository.findById(reserva.getProveedorId()).orElse(null);
-        return construirRespuesta(reserva, servicio, proveedor, reserva.getClienteId());
+        ReservaResponse respuesta = construirRespuesta(reserva, servicio, proveedor, reserva.getClienteId());
+
+        if (reserva.getEstado() == EstadoReserva.CANCELADA) {
+            CancelacionReserva cancelacion = reserva.getCancelacion();
+            if (cancelacion == null) {
+                cancelacion = cancelacionReservaRepository.findByReservaId(reserva.getIdReserva()).orElse(null);
+            }
+            if (cancelacion != null) {
+                respuesta.setFechaCancelacion(cancelacion.getFechaCancelacion());
+                respuesta.setMotivoCancelacion(cancelacion.getMotivo());
+            }
+        }
+        return respuesta;
     }
 
     private String generarResumen(String nombreServicio, String nombreNegocio, String nombreProveedor, LocalDateTime inicio, LocalDateTime fin) {
