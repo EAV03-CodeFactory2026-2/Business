@@ -27,5 +27,8 @@ public class Negocio {
 
     @Column(name = "nombre_negocio", nullable = false, length = 250)
     private String nombreNegocio;
+
+    @Column(name = "moneda_codigo_iso", length = 3)
+    private String monedaCodigoIso;
 }
 
