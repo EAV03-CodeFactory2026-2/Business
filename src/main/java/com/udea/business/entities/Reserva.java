@@ -84,6 +84,9 @@ public class Reserva {
     @JoinColumn(name = "servicio_id", insertable = false, updatable = false)
     private Servicio servicio;
 
+    @OneToOne(mappedBy = "reserva", fetch = FetchType.LAZY)
+    private CancelacionReserva cancelacion;
+
     @PrePersist
     void alCrear() {
         if (fechaCreacion == null) {
