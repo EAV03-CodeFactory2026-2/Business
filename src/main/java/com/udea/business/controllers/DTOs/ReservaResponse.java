@@ -79,4 +79,14 @@ public class ReservaResponse {
 
     @Schema(description = "Fecha y hora de registro de la reserva")
     private OffsetDateTime fechaCreacion;
+
+    @Schema(description = "Fecha y hora en que fue cancelada la reserva", example = "2026-11-08T18:00:00Z")
+    private OffsetDateTime fechaCancelacion;
+
+    @Schema(description = "Motivo registrado de la cancelación", example = "Imprevisto personal de fuerza mayor")
+    private String motivoCancelacion;
+
+    public String getMotivo() {
+        return motivoCancelacion;
+    }
 }
