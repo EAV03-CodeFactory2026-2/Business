@@ -20,4 +20,8 @@ public interface IReservaValidator {
     void validarDisponibilidadProveedor(Integer proveedorId, LocalDateTime inicio, LocalDateTime fin);
 
     void validarDisponibilidadCliente(Integer clienteId, LocalDateTime inicio, LocalDateTime fin);
+
+    void validarDisponibilidadRecursos(Servicio servicio, LocalDateTime inicio, LocalDateTime fin);
+
+    boolean hayRecursosDisponibles(Servicio servicio, LocalDateTime inicio, LocalDateTime fin);
 }

@@ -4,19 +4,26 @@ import com.udea.business.controllers.DTOs.CrearReservaRequest;
 import com.udea.business.entities.DiaSemana;
 import com.udea.business.entities.EstadoReserva;
 import com.udea.business.entities.FranjaServicio;
+import com.udea.business.entities.RecursoNegocio;
+import com.udea.business.entities.Reserva;
 import com.udea.business.entities.Servicio;
+import com.udea.business.entities.ServicioRecurso;
 import com.udea.business.exceptions.AccesoDenegadoException;
 import com.udea.business.exceptions.RecursoDuplicadoException;
 import com.udea.business.exceptions.SolicitudInvalidaException;
 import com.udea.business.repositories.FranjaServicioRepository;
 import com.udea.business.repositories.ReservaRepository;
+import com.udea.business.repositories.ServicioRecursoRepository;
 import com.udea.business.security.IUsuarioActual;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @Component
 @RequiredArgsConstructor
@@ -36,6 +43,7 @@ public class ReservaValidator implements IReservaValidator {
 
     private final FranjaServicioRepository franjaServicioRepository;
     private final ReservaRepository reservaRepository;
+    private final ServicioRecursoRepository servicioRecursoRepository;
 
     @Override
     public void validarRolCliente(IUsuarioActual usuarioActual) {
@@ -124,6 +132,81 @@ public class ReservaValidator implements IReservaValidator {
                 clienteId, inicio, fin, EstadoReserva.CONFIRMADA).isEmpty();
         if (cruceCliente) {
             throw new SolicitudInvalidaException(MSG_CRUCE_CLIENTE);
+        }
+    }
+
+    @Override
+    public void validarDisponibilidadRecursos(Servicio servicio, LocalDateTime inicio, LocalDateTime fin) {
+        if (servicio == null || servicio.getIdServicio() == null || inicio == null || fin == null) {
+            return;
+        }
+
+        List<ServicioRecurso> recursosRequeridos = servicioRecursoRepository.findByServicioIdWithRecurso(servicio.getIdServicio());
+        if (recursosRequeridos.isEmpty()) {
+            return;
+        }
+
+        Integer negocioId = (servicio.getNegocio() != null && servicio.getNegocio().getIdNegocio() != null)
+                ? servicio.getNegocio().getIdNegocio()
+                : recursosRequeridos.get(0).getNegocioId();
+
+        List<Reserva> solapadas = negocioId != null
+                ? reservaRepository.findOverlappingConfirmedByNegocio(negocioId, inicio, fin, EstadoReserva.CONFIRMADA)
+                : reservaRepository.findOverlappingConfirmed(inicio, fin, EstadoReserva.CONFIRMADA);
+        if (solapadas.isEmpty()) {
+            for (ServicioRecurso sr : recursosRequeridos) {
+                RecursoNegocio recurso = sr.getRecursoNegocio();
+                int capacidadTotal = (recurso != null && recurso.getCantidad() != null) ? recurso.getCantidad() : 0;
+                int requerida = sr.getCantidadRequerida() != null ? sr.getCantidadRequerida() : 0;
+                if (requerida > capacidadTotal) {
+                    String nombre = recurso != null ? recurso.getNombre() : "requerido";
+                    throw new SolicitudInvalidaException(
+                            String.format("No hay unidades suficientes del recurso %s para esa franja.", nombre)
+                    );
+                }
+            }
+            return;
+        }
+
+        Map<Integer, List<ServicioRecurso>> recursosPorServicio = new HashMap<>();
+
+        for (ServicioRecurso sr : recursosRequeridos) {
+            RecursoNegocio recurso = sr.getRecursoNegocio();
+            Integer recursoId = recurso != null ? recurso.getIdRecurso() : null;
+            int capacidadTotal = (recurso != null && recurso.getCantidad() != null) ? recurso.getCantidad() : 0;
+            int requerida = sr.getCantidadRequerida() != null ? sr.getCantidadRequerida() : 0;
+
+            int ocupado = 0;
+            for (Reserva solapada : solapadas) {
+                Integer servicioSolapadoId = solapada.getServicioId();
+                List<ServicioRecurso> recursosDeSolapado = recursosPorServicio.computeIfAbsent(
+                        servicioSolapadoId,
+                        servicioRecursoRepository::findByServicioIdWithRecurso
+                );
+                for (ServicioRecurso srSolapado : recursosDeSolapado) {
+                    if (srSolapado.getRecursoNegocio() != null
+                            && Objects.equals(srSolapado.getRecursoNegocio().getIdRecurso(), recursoId)) {
+                        ocupado += (srSolapado.getCantidadRequerida() != null ? srSolapado.getCantidadRequerida() : 0);
+                    }
+                }
+            }
+
+            if (ocupado + requerida > capacidadTotal) {
+                String nombre = recurso != null ? recurso.getNombre() : "requerido";
+                throw new SolicitudInvalidaException(
+                        String.format("No hay unidades suficientes del recurso %s para esa franja.", nombre)
+                );
+            }
+        }
+    }
+
+    @Override
+    public boolean hayRecursosDisponibles(Servicio servicio, LocalDateTime inicio, LocalDateTime fin) {
+        try {
+            validarDisponibilidadRecursos(servicio, inicio, fin);
+            return true;
+        } catch (SolicitudInvalidaException e) {
+            return false;
         }
     }
 }
