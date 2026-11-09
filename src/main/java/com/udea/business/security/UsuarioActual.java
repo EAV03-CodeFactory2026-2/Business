@@ -14,6 +14,7 @@ public class UsuarioActual implements IUsuarioActual {
 
     private static final String ROL_PROPIETARIO = "ROLE_PROPIETARIO";
     private static final String ROL_PROVEEDOR = "ROLE_PROVEEDOR";
+    private static final String ROL_CLIENTE = "ROLE_CLIENTE";
     private static final String MSG_NO_IDENTIFICADO = "No fue posible identificar al usuario autenticado.";
 
     @Override
@@ -33,6 +34,11 @@ public class UsuarioActual implements IUsuarioActual {
     @Override
     public boolean esProveedor() {
         return tieneRol(ROL_PROVEEDOR);
+    }
+
+    @Override
+    public boolean esCliente() {
+        return tieneRol(ROL_CLIENTE);
     }
 
     private boolean tieneRol(String rol) {

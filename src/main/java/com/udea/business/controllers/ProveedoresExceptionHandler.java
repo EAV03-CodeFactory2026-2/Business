@@ -18,7 +18,8 @@ import java.util.Map;
 @RestControllerAdvice(assignableTypes = {
         AsignacionProveedorController.class,
         MisServiciosController.class,
-        ServicioRecursoController.class
+        ServicioRecursoController.class,
+        ReservaController.class
 })
 public class ProveedoresExceptionHandler {
 
