@@ -4,7 +4,6 @@ import com.udea.business.controllers.DTOs.CancelarReservaRequest;
 import com.udea.business.controllers.DTOs.CrearReservaRequest;
 import com.udea.business.controllers.DTOs.ReservaResponse;
 import com.udea.business.entities.*;
-import com.udea.business.exceptions.AccesoDenegadoException;
 import com.udea.business.exceptions.RecursoDuplicadoException;
 import com.udea.business.exceptions.RecursoNoEncontradoException;
 import com.udea.business.exceptions.SolicitudInvalidaException;
@@ -18,12 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -136,7 +133,6 @@ public class ReservaService implements IReservaService {
         }
 
         Reserva reserva = reservaRepository.findById(idReserva)
-                .filter(accesoReservaPolicy::puedeVer)
                 .orElseThrow(() -> new RecursoNoEncontradoException(MSG_RESERVA_NO_ENCONTRADA));
 
         LocalDateTime ahora = LocalDateTime.now(clock);
@@ -183,6 +179,7 @@ public class ReservaService implements IReservaService {
             throw new SolicitudInvalidaException("El identificador de la reserva es obligatorio.");
         }
         Reserva reserva = reservaRepository.findById(idReserva)
+                .filter(accesoReservaPolicy::puedeVer)
                 .orElseThrow(() -> new RecursoNoEncontradoException(MSG_RESERVA_NO_ENCONTRADA));
         return mapearDesdeEntidad(reserva);
     }
@@ -198,35 +195,6 @@ public class ReservaService implements IReservaService {
                 .filter(accesoReservaPolicy::puedeVer)
                 .orElseThrow(() -> new RecursoNoEncontradoException(MSG_RESERVA_NO_ENCONTRADA));
         return mapearDesdeEntidad(reserva);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ReservaResponse> consultarAgendaProveedor(Integer proveedorId, LocalDate fecha) {
-        if (proveedorId == null) {
-            throw new SolicitudInvalidaException("El identificador del proveedor es obligatorio.");
-        }
-        if (fecha == null) {
-            throw new SolicitudInvalidaException("La fecha es obligatoria para consultar la agenda.");
-        }
-
-        LocalDateTime inicioDia = fecha.atStartOfDay();
-        LocalDateTime finDia = fecha.atTime(LocalTime.MAX);
-
-        return reservaRepository.findConfirmedByProveedorAndRango(
-                proveedorId, inicioDia, finDia, EstadoReserva.CONFIRMADA
-        ).stream()
-        .map(this::mapearDesdeEntidad)
-        .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ReservaResponse> consultarMiAgenda(LocalDate fecha) {
-        if (usuarioActual == null || !usuarioActual.esProveedor()) {
-            throw new AccesoDenegadoException("Solo los proveedores pueden consultar su agenda.");
-        }
-        return consultarAgendaProveedor(usuarioActual.getId(), fecha);
     }
 
     private ReservaResponse construirRespuesta(Reserva reserva, Servicio servicio, PerfilProveedor proveedor, Integer clienteId) {

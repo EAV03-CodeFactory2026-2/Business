@@ -63,7 +63,7 @@ public class ReservaController {
             @ApiResponse(responseCode = "200", description = "Tu reserva fue cancelada."),
             @ApiResponse(responseCode = "400", description = "Cancelación fuera del plazo, hora ya pasada o ya cancelada."),
             @ApiResponse(responseCode = "403", description = "No tienes permiso para cancelar esta reserva."),
-            @ApiResponse(responseCode = "404", description = "Reserva no encontrada o sin permiso para verla.")
+            @ApiResponse(responseCode = "404", description = "Reserva no encontrada.")
     })
     @PostMapping("/reservas/{idReserva}/cancelar")
     public ResponseEntity<ReservaResponse> cancelarReservaPost(
@@ -120,49 +120,11 @@ public class ReservaController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Reserva encontrada exitosamente."),
-            @ApiResponse(responseCode = "404", description = "Reserva no encontrada.")
+            @ApiResponse(responseCode = "404", description = "Reserva no encontrada o sin permiso para verla.")
     })
     @GetMapping("/reservas/codigo/{codigoReserva}")
     public ResponseEntity<ReservaResponse> consultarPorCodigo(@PathVariable("codigoReserva") String codigoReserva) {
         ReservaResponse respuesta = reservaService.consultarPorCodigo(codigoReserva);
         return ResponseEntity.ok(respuesta);
-    }
-
-    @Operation(
-            summary = "Consultar agenda de un proveedor",
-            description = "Devuelve el listado de reservas confirmadas para un proveedor en una fecha específica. "
-                    + "Las reservas canceladas son excluidas automáticamente de la agenda.",
-            security = @SecurityRequirement(name = "BearerAuth")
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Agenda del proveedor consultada exitosamente."),
-            @ApiResponse(responseCode = "400", description = "Parámetros inválidos o fecha faltante.")
-    })
-    @GetMapping({"/proveedores/{proveedorId}/agenda"})
-    public ResponseEntity<List<ReservaResponse>> consultarAgendaProveedor(
-            @PathVariable(value = "proveedorId", required = false) Integer pathProveedorId,
-            @RequestParam(value = "proveedorId", required = false) Integer paramProveedorId,
-            @Parameter(description = "Fecha de la consulta de agenda (formato YYYY-MM-DD)", required = true, example = "2026-11-09")
-            @RequestParam("fecha") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
-        Integer proveedorId = pathProveedorId != null ? pathProveedorId : paramProveedorId;
-        List<ReservaResponse> agenda = reservaService.consultarAgendaProveedor(proveedorId, fecha);
-        return ResponseEntity.ok(agenda);
-    }
-
-    @Operation(
-            summary = "Consultar mi agenda de proveedor",
-            description = "Devuelve las reservas confirmadas del proveedor autenticado para la fecha especificada.",
-            security = @SecurityRequirement(name = "BearerAuth")
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Agenda consultada exitosamente."),
-            @ApiResponse(responseCode = "403", description = "Solo los proveedores pueden consultar su agenda.")
-    })
-    @GetMapping("/reservas/mi-agenda")
-    public ResponseEntity<List<ReservaResponse>> consultarMiAgenda(
-            @Parameter(description = "Fecha de la consulta de agenda (formato YYYY-MM-DD)", required = true, example = "2026-11-09")
-            @RequestParam("fecha") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
-        List<ReservaResponse> agenda = reservaService.consultarMiAgenda(fecha);
-        return ResponseEntity.ok(agenda);
     }
 }

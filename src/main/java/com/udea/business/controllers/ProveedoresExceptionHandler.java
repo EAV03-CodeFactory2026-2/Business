@@ -20,7 +20,8 @@ import java.util.Map;
         MisServiciosController.class,
         ServicioRecursoController.class,
         ReservaController.class,
-        MisReservasController.class
+        MisReservasController.class,
+        AgendaProveedorController.class
 })
 public class ProveedoresExceptionHandler {
 
