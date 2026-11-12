@@ -15,8 +15,6 @@ public interface IReservaService {
 
     ReservaResponse consultarPorCodigo(String codigoReserva);
 
-    List<ReservaResponse> consultarMisReservas();
-
     ReservaResponse cancelarReserva(Integer idReserva, CancelarReservaRequest request);
 
     List<ReservaResponse> consultarAgendaProveedor(Integer proveedorId, LocalDate fecha);

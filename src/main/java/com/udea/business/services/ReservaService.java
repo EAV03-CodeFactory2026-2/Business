@@ -10,6 +10,7 @@ import com.udea.business.exceptions.RecursoNoEncontradoException;
 import com.udea.business.exceptions.SolicitudInvalidaException;
 import com.udea.business.repositories.*;
 import com.udea.business.security.IUsuarioActual;
+import com.udea.business.services.acceso.IAccesoReservaPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,7 @@ public class ReservaService implements IReservaService {
     private final UsuarioPlataformaRepository usuarioPlataformaRepository;
     private final FranjaServicioRepository franjaServicioRepository;
     private final Clock clock;
+    private final IAccesoReservaPolicy accesoReservaPolicy;
 
     @Override
     @Transactional
@@ -134,6 +136,7 @@ public class ReservaService implements IReservaService {
         }
 
         Reserva reserva = reservaRepository.findById(idReserva)
+                .filter(accesoReservaPolicy::puedeVer)
                 .orElseThrow(() -> new RecursoNoEncontradoException(MSG_RESERVA_NO_ENCONTRADA));
 
         LocalDateTime ahora = LocalDateTime.now(clock);
@@ -190,19 +193,11 @@ public class ReservaService implements IReservaService {
         if (codigoReserva == null || codigoReserva.trim().isEmpty()) {
             throw new SolicitudInvalidaException("El código de la reserva es obligatorio.");
         }
+        // Una reserva que el usuario no puede ver se trata como inexistente, para no revelar que existe.
         Reserva reserva = reservaRepository.findByCodigoReserva(codigoReserva.trim())
+                .filter(accesoReservaPolicy::puedeVer)
                 .orElseThrow(() -> new RecursoNoEncontradoException(MSG_RESERVA_NO_ENCONTRADA));
         return mapearDesdeEntidad(reserva);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ReservaResponse> consultarMisReservas() {
-        validator.validarRolCliente(usuarioActual);
-        Integer clienteId = usuarioActual.getId();
-        return reservaRepository.findByClienteIdOrderByInicioDesc(clienteId).stream()
-                .map(this::mapearDesdeEntidad)
-                .toList();
     }
 
     @Override
