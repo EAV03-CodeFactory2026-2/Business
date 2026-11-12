@@ -47,15 +47,6 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
             @Param("fin") LocalDateTime fin,
             @Param("estado") EstadoReserva estado);
 
-    @Query("SELECT r FROM Reserva r WHERE r.proveedorId = :proveedorId "
-            + "AND r.estado = :estado "
-            + "AND r.inicio < :finDia AND r.fin > :inicioDia")
-    List<Reserva> findConfirmedByProveedorAndRango(
-            @Param("proveedorId") Integer proveedorId,
-            @Param("inicioDia") LocalDateTime inicioDia,
-            @Param("finDia") LocalDateTime finDia,
-            @Param("estado") EstadoReserva estado);
-
     /** HU-0019: reservas del cliente con servicio, negocio, proveedor y cancelación cargados en una sola consulta. */
     @Query("SELECT r FROM Reserva r "
             + "LEFT JOIN FETCH r.servicio s LEFT JOIN FETCH s.negocio "
@@ -72,4 +63,16 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
             + "WHERE r.idReserva = :idReserva AND r.clienteId = :clienteId")
     Optional<Reserva> findDetalladaPorIdYCliente(@Param("idReserva") Integer idReserva,
                                                  @Param("clienteId") Integer clienteId);
+
+    /** HU-0022: reservas del proveedor que inician en [desde, hasta), ordenadas por hora de inicio. */
+    @Query("SELECT r FROM Reserva r "
+            + "LEFT JOIN FETCH r.servicio s LEFT JOIN FETCH s.negocio "
+            + "LEFT JOIN FETCH r.cliente "
+            + "WHERE r.proveedorId = :proveedorId AND r.estado = :estado "
+            + "AND r.inicio >= :desde AND r.inicio < :hasta "
+            + "ORDER BY r.inicio ASC")
+    List<Reserva> findAgendaProveedor(@Param("proveedorId") Integer proveedorId,
+                                      @Param("desde") LocalDateTime desde,
+                                      @Param("hasta") LocalDateTime hasta,
+                                      @Param("estado") EstadoReserva estado);
 }
