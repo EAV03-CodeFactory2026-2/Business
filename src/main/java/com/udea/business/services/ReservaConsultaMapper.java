@@ -1,5 +1,6 @@
 package com.udea.business.services;
 
+import com.udea.business.controllers.DTOs.ReservaAgendaResponse;
 import com.udea.business.controllers.DTOs.ReservaResponse;
 import com.udea.business.controllers.DTOs.ReservaResumenResponse;
 import com.udea.business.entities.CancelacionReserva;
@@ -59,6 +60,22 @@ public class ReservaConsultaMapper implements IReservaConsultaMapper {
                 .fechaCreacion(reserva.getFechaCreacion())
                 .fechaCancelacion(cancelacion.map(CancelacionReserva::getFechaCancelacion).orElse(null))
                 .motivoCancelacion(cancelacion.map(CancelacionReserva::getMotivo).orElse(null))
+                .build();
+    }
+
+    @Override
+    public ReservaAgendaResponse aAgenda(Reserva reserva) {
+        Optional<UsuarioPlataforma> cliente = Optional.ofNullable(reserva.getCliente());
+        return ReservaAgendaResponse.builder()
+                .idReserva(reserva.getIdReserva())
+                .codigoReserva(reserva.getCodigoReserva())
+                .horaInicio(reserva.getInicio().format(FORMATO_HORA))
+                .horaFin(reserva.getFin().format(FORMATO_HORA))
+                .nombreServicio(reserva.getNombreServicio())
+                .nombreNegocio(nombreNegocio(reserva))
+                .nombreCliente(cliente.map(UsuarioPlataforma::getNombreCompleto).orElse(null))
+                .telefonoCliente(cliente.map(UsuarioPlataforma::getTelefono).orElse(null))
+                .notas(reserva.getNotas())
                 .build();
     }
 
