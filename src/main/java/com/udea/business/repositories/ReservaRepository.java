@@ -18,8 +18,6 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
 
     Optional<Reserva> findByCodigoReserva(String codigoReserva);
 
-    List<Reserva> findByClienteIdOrderByInicioDesc(Integer clienteId);
-
     @Query("SELECT r FROM Reserva r WHERE r.proveedorId = :proveedorId "
             + "AND r.estado = :estado "
             + "AND r.inicio < :fin AND r.fin > :inicio")
@@ -57,4 +55,21 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
             @Param("inicioDia") LocalDateTime inicioDia,
             @Param("finDia") LocalDateTime finDia,
             @Param("estado") EstadoReserva estado);
+
+    /** HU-0019: reservas del cliente con servicio, negocio, proveedor y cancelación cargados en una sola consulta. */
+    @Query("SELECT r FROM Reserva r "
+            + "LEFT JOIN FETCH r.servicio s LEFT JOIN FETCH s.negocio "
+            + "LEFT JOIN FETCH r.perfilProveedor p LEFT JOIN FETCH p.usuario "
+            + "LEFT JOIN FETCH r.cancelacion "
+            + "WHERE r.clienteId = :clienteId")
+    List<Reserva> findDetalladasPorCliente(@Param("clienteId") Integer clienteId);
+
+    /** HU-0019: detalle de una reserva solo si pertenece al cliente indicado. */
+    @Query("SELECT r FROM Reserva r "
+            + "LEFT JOIN FETCH r.servicio s LEFT JOIN FETCH s.negocio "
+            + "LEFT JOIN FETCH r.perfilProveedor p LEFT JOIN FETCH p.usuario "
+            + "LEFT JOIN FETCH r.cancelacion "
+            + "WHERE r.idReserva = :idReserva AND r.clienteId = :clienteId")
+    Optional<Reserva> findDetalladaPorIdYCliente(@Param("idReserva") Integer idReserva,
+                                                 @Param("clienteId") Integer clienteId);
 }
