@@ -45,11 +45,7 @@ public class ReservaController {
     })
     @PostMapping({"/reservas"})
     public ResponseEntity<ReservaResponse> crearReserva(
-            @PathVariable(value = "servicioId", required = false) Integer servicioIdParam,
             @RequestBody CrearReservaRequest request) {
-        if (servicioIdParam != null && request != null && request.getServicioId() == null) {
-            request.setServicioId(servicioIdParam);
-        }
         ReservaResponse respuesta = reservaService.crearReserva(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
     }
