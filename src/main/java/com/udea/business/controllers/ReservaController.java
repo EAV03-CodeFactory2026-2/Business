@@ -63,7 +63,7 @@ public class ReservaController {
             @ApiResponse(responseCode = "200", description = "Tu reserva fue cancelada."),
             @ApiResponse(responseCode = "400", description = "Cancelación fuera del plazo, hora ya pasada o ya cancelada."),
             @ApiResponse(responseCode = "403", description = "No tienes permiso para cancelar esta reserva."),
-            @ApiResponse(responseCode = "404", description = "Reserva no encontrada.")
+            @ApiResponse(responseCode = "404", description = "Reserva no encontrada o sin permiso para verla.")
     })
     @PostMapping("/reservas/{idReserva}/cancelar")
     public ResponseEntity<ReservaResponse> cancelarReservaPost(
@@ -97,12 +97,14 @@ public class ReservaController {
 
     @Operation(
             summary = "Consultar detalle de una reserva por su ID",
-            description = "Obtiene los detalles completos y snapshot histórico de una reserva por su ID numérico.",
+            description = "Obtiene los detalles completos y snapshot histórico de una reserva por su ID numérico. "
+                    + "El cliente solo ve las suyas, el proveedor solo las que atiende y el propietario "
+                    + "las de todos los proveedores de sus negocios.",
             security = @SecurityRequirement(name = "BearerAuth")
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Detalle de la reserva obtenido exitosamente."),
-            @ApiResponse(responseCode = "404", description = "Reserva no encontrada.")
+            @ApiResponse(responseCode = "404", description = "Reserva no encontrada o sin permiso para verla.")
     })
     @GetMapping("/reservas/{idReserva}")
     public ResponseEntity<ReservaResponse> consultarPorId(@PathVariable("idReserva") Integer idReserva) {
@@ -112,7 +114,8 @@ public class ReservaController {
 
     @Operation(
             summary = "Consultar reserva por código de referencia",
-            description = "Permite buscar una reserva mediante su código alfanumérico único (ej. RSV-00000001).",
+            description = "Permite buscar una reserva mediante su código alfanumérico único (ej. RSV-00000001). "
+                    + "Aplica las mismas reglas de visibilidad que la consulta por ID.",
             security = @SecurityRequirement(name = "BearerAuth")
     )
     @ApiResponses({
@@ -123,21 +126,6 @@ public class ReservaController {
     public ResponseEntity<ReservaResponse> consultarPorCodigo(@PathVariable("codigoReserva") String codigoReserva) {
         ReservaResponse respuesta = reservaService.consultarPorCodigo(codigoReserva);
         return ResponseEntity.ok(respuesta);
-    }
-
-    @Operation(
-            summary = "Consultar mis reservas",
-            description = "Devuelve el historial de reservas confirmadas y canceladas correspondientes al cliente autenticado.",
-            security = @SecurityRequirement(name = "BearerAuth")
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Listado de reservas del cliente retornado."),
-            @ApiResponse(responseCode = "403", description = "Solo los clientes pueden consultar sus reservas.")
-    })
-    @GetMapping("/reservas/mis-reservas")
-    public ResponseEntity<List<ReservaResponse>> consultarMisReservas() {
-        List<ReservaResponse> misReservas = reservaService.consultarMisReservas();
-        return ResponseEntity.ok(misReservas);
     }
 
     @Operation(

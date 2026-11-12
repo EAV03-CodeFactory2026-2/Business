@@ -19,7 +19,8 @@ import java.util.Map;
         AsignacionProveedorController.class,
         MisServiciosController.class,
         ServicioRecursoController.class,
-        ReservaController.class
+        ReservaController.class,
+        MisReservasController.class
 })
 public class ProveedoresExceptionHandler {
 
