@@ -1,5 +1,6 @@
 package com.udea.business.services;
 
+import com.udea.business.controllers.DTOs.CancelarReservaRequest;
 import com.udea.business.controllers.DTOs.CrearReservaRequest;
 import com.udea.business.controllers.DTOs.ReservaResponse;
 import com.udea.business.entities.CancelacionReserva;
@@ -113,9 +114,7 @@ class ReservaServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReservaService(validator, cancelacionValidator, codigoReservaGenerator, usuarioActual,
-                reservaRepository, cancelacionReservaRepository, servicioRepository, perfilProveedorRepository,
-                usuarioPlataformaRepository, franjaServicioRepository, Clock.fixed(AHORA, ZONA), accesoReservaPolicy);
+        service = servicioConReloj(Clock.fixed(AHORA, ZONA));
     }
 
     // HU-0018/CA-01
@@ -515,6 +514,151 @@ class ReservaServiceTest {
 
         assertEquals("El código de la reserva es obligatorio.", ex.getMessage());
         verifyNoInteractions(reservaRepository);
+    }
+
+    // HU-0021/CA-01
+    @Test
+    void debeCancelarLaReservaConFechaYMotivo_cuandoElClienteConfirmaATiempo() {
+        LocalDateTime domingo18 = LocalDateTime.of(2026, 11, 8, 18, 0);
+        Clock reloj = Clock.fixed(domingo18.atZone(ZONA).toInstant(), ZONA);
+        service = servicioConReloj(reloj);
+        Reserva reserva = reservaGuardada(EstadoReserva.CONFIRMADA);
+        CancelarReservaRequest request = CancelarReservaRequest.builder()
+                .motivo("  Viaje de trabajo  ")
+                .confirmacion(true)
+                .build();
+        when(reservaRepository.findById(RESERVA_ID)).thenReturn(Optional.of(reserva));
+        when(usuarioActual.getId()).thenReturn(CLIENTE_ID);
+        when(reservaRepository.save(reserva)).thenReturn(reserva);
+        prepararDatosDeDetalle();
+
+        ReservaResponse respuesta = service.cancelarReserva(RESERVA_ID, request);
+
+        OffsetDateTime esperada = OffsetDateTime.now(reloj);
+        assertEquals(MSG_RESERVA_CANCELADA, respuesta.getMensaje());
+        assertEquals("Cancelada", respuesta.getEstado());
+        assertEquals(esperada, respuesta.getFechaCancelacion());
+        assertEquals("Viaje de trabajo", respuesta.getMotivoCancelacion());
+        assertEquals(EstadoReserva.CANCELADA, reserva.getEstado());
+        assertEquals(esperada, reserva.getFechaActualizacion());
+        verify(cancelacionValidator).validarCancelacion(reserva, usuarioActual, request, domingo18);
+        ArgumentCaptor<CancelacionReserva> captor = ArgumentCaptor.forClass(CancelacionReserva.class);
+        verify(cancelacionReservaRepository).save(captor.capture());
+        CancelacionReserva cancelacion = captor.getValue();
+        assertEquals(RESERVA_ID, cancelacion.getReservaId());
+        assertEquals(CLIENTE_ID, cancelacion.getCanceladaPor());
+        assertEquals(esperada, cancelacion.getFechaCancelacion());
+        assertEquals("Viaje de trabajo", cancelacion.getMotivo());
+        assertEquals(EstadoReserva.CANCELADA, cancelacion.getEstado());
+        assertEquals(cancelacion, reserva.getCancelacion());
+    }
+
+    @Test
+    void debeCancelarSinMotivo_cuandoElMotivoEstaEnBlanco() {
+        Reserva reserva = reservaGuardada(EstadoReserva.CONFIRMADA);
+        CancelarReservaRequest request = CancelarReservaRequest.builder().motivo("   ").confirmacion(true).build();
+        when(reservaRepository.findById(RESERVA_ID)).thenReturn(Optional.of(reserva));
+        when(usuarioActual.getId()).thenReturn(CLIENTE_ID);
+        when(reservaRepository.save(reserva)).thenReturn(reserva);
+        when(servicioRepository.findById(SERVICIO_ID)).thenReturn(Optional.empty());
+        when(perfilProveedorRepository.findById(PROVEEDOR_ID)).thenReturn(Optional.empty());
+        when(usuarioPlataformaRepository.findById(CLIENTE_ID)).thenReturn(Optional.empty());
+
+        ReservaResponse respuesta = service.cancelarReserva(RESERVA_ID, request);
+
+        assertNull(respuesta.getMotivoCancelacion());
+        assertEquals("Cancelada", respuesta.getEstado());
+    }
+
+    @Test
+    void debeCancelarSinMotivo_cuandoLaSolicitudNoTraeCuerpoYElValidadorLaAcepta() {
+        Reserva reserva = reservaGuardada(EstadoReserva.CONFIRMADA);
+        when(reservaRepository.findById(RESERVA_ID)).thenReturn(Optional.of(reserva));
+        when(usuarioActual.getId()).thenReturn(CLIENTE_ID);
+        when(reservaRepository.save(reserva)).thenReturn(reserva);
+        when(servicioRepository.findById(SERVICIO_ID)).thenReturn(Optional.empty());
+        when(perfilProveedorRepository.findById(PROVEEDOR_ID)).thenReturn(Optional.empty());
+        when(usuarioPlataformaRepository.findById(CLIENTE_ID)).thenReturn(Optional.empty());
+
+        ReservaResponse respuesta = service.cancelarReserva(RESERVA_ID, null);
+
+        assertNull(respuesta.getMotivoCancelacion());
+    }
+
+    // HU-0021/CA-03
+    @Test
+    void debeMantenerLaReservaConfirmada_cuandoLaCancelacionEstaFueraDePlazo() {
+        Reserva reserva = reservaGuardada(EstadoReserva.CONFIRMADA);
+        CancelarReservaRequest request = CancelarReservaRequest.builder().confirmacion(true).build();
+        when(reservaRepository.findById(RESERVA_ID)).thenReturn(Optional.of(reserva));
+        doThrow(new SolicitudInvalidaException(CancelacionReservaValidator.MSG_FUERA_DE_PLAZO))
+                .when(cancelacionValidator).validarCancelacion(any(), any(), any(), any());
+
+        SolicitudInvalidaException ex = assertThrows(SolicitudInvalidaException.class,
+                () -> service.cancelarReserva(RESERVA_ID, request));
+
+        assertEquals(CancelacionReservaValidator.MSG_FUERA_DE_PLAZO, ex.getMessage());
+        assertEquals(EstadoReserva.CONFIRMADA, reserva.getEstado());
+        verifyNoInteractions(cancelacionReservaRepository);
+        verify(reservaRepository, never()).save(any());
+    }
+
+    // HU-0021/CA-05
+    @Test
+    void debeInformarQueYaEstabaCancelada_cuandoSeCancelaDeNuevo() {
+        Reserva reserva = reservaGuardada(EstadoReserva.CANCELADA);
+        when(reservaRepository.findById(RESERVA_ID)).thenReturn(Optional.of(reserva));
+        doThrow(new SolicitudInvalidaException(CancelacionReservaValidator.MSG_RESERVA_YA_CANCELADA))
+                .when(cancelacionValidator).validarCancelacion(any(), any(), any(), any());
+
+        SolicitudInvalidaException ex = assertThrows(SolicitudInvalidaException.class,
+                () -> service.cancelarReserva(RESERVA_ID, CancelarReservaRequest.builder().confirmacion(true).build()));
+
+        assertEquals(CancelacionReservaValidator.MSG_RESERVA_YA_CANCELADA, ex.getMessage());
+        verifyNoInteractions(cancelacionReservaRepository);
+    }
+
+    // HU-0021/CA-06
+    @Test
+    void debeMantenerLaReservaAjenaConfirmada_cuandoOtroClienteIntentaCancelarla() {
+        Reserva deMario = reservaGuardada(EstadoReserva.CONFIRMADA);
+        deMario.setClienteId(21);
+        when(reservaRepository.findById(RESERVA_ID)).thenReturn(Optional.of(deMario));
+        doThrow(new AccesoDenegadoException(CancelacionReservaValidator.MSG_SIN_PERMISO))
+                .when(cancelacionValidator).validarCancelacion(any(), any(), any(), any());
+
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class,
+                () -> service.cancelarReserva(RESERVA_ID, CancelarReservaRequest.builder().confirmacion(true).build()));
+
+        assertEquals(CancelacionReservaValidator.MSG_SIN_PERMISO, ex.getMessage());
+        assertEquals(EstadoReserva.CONFIRMADA, deMario.getEstado());
+        verify(reservaRepository, never()).save(any());
+    }
+
+    @Test
+    void debeResponderNoEncontrada_cuandoSeCancelaUnaReservaInexistente() {
+        when(reservaRepository.findById(RESERVA_ID)).thenReturn(Optional.empty());
+
+        RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class,
+                () -> service.cancelarReserva(RESERVA_ID, CancelarReservaRequest.builder().confirmacion(true).build()));
+
+        assertEquals(MSG_RESERVA_NO_ENCONTRADA, ex.getMessage());
+        verifyNoInteractions(cancelacionValidator);
+    }
+
+    @Test
+    void debeRechazarLaCancelacion_cuandoElIdEsNulo() {
+        SolicitudInvalidaException ex = assertThrows(SolicitudInvalidaException.class,
+                () -> service.cancelarReserva(null, CancelarReservaRequest.builder().confirmacion(true).build()));
+
+        assertEquals("El identificador de la reserva es obligatorio.", ex.getMessage());
+        verifyNoInteractions(reservaRepository);
+    }
+
+    private ReservaService servicioConReloj(Clock reloj) {
+        return new ReservaService(validator, cancelacionValidator, codigoReservaGenerator, usuarioActual,
+                reservaRepository, cancelacionReservaRepository, servicioRepository, perfilProveedorRepository,
+                usuarioPlataformaRepository, franjaServicioRepository, reloj, accesoReservaPolicy);
     }
 
     private void prepararCreacion(CrearReservaRequest request, Servicio servicio) {
