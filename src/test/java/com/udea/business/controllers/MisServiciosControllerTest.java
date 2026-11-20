@@ -16,6 +16,7 @@ import java.util.List;
 
 import static com.udea.business.services.AsignacionProveedorService.MSG_SOLO_PROVEEDOR;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -87,5 +88,18 @@ class MisServiciosControllerTest {
                 .andExpect(jsonPath("$.error").value(MSG_SOLO_PROVEEDOR));
 
         verify(service).consultarMisServicios();
+    }
+
+    // HU-0043/CA-04
+    @Test
+    void debeIgnorarElIdDeOtroProveedor_cuandoSeEnviaComoParametro() throws Exception {
+        when(service.consultarMisServicios()).thenReturn(List.of());
+
+        mockMvc.perform(get(URL).param("proveedorId", "99"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        verify(service).consultarMisServicios();
+        verifyNoMoreInteractions(service);
     }
 }

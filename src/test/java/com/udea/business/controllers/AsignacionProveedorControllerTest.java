@@ -220,6 +220,27 @@ class AsignacionProveedorControllerTest {
                 .andExpect(jsonPath("$.error").value("Ha ocurrido un error inesperado en el servidor."));
     }
 
+    // HU-0042/CA-02
+    @Test
+    void debeResponder200ConListaVacia_cuandoElServicioNoTieneProveedores() throws Exception {
+        when(service.consultarProveedoresAsignados(SERVICIO_ID)).thenReturn(List.of());
+
+        mockMvc.perform(get(URL, SERVICIO_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    // HU-0042/CA-06
+    @Test
+    void debeResponder400_cuandoSeConsultanProveedoresConUnIdInvalido() throws Exception {
+        mockMvc.perform(get(URL, "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("El parámetro 'servicioId' tiene un formato inválido."));
+
+        verifyNoInteractions(service);
+    }
+
     private MockHttpServletRequestBuilder conProveedores(Integer... ids) {
         String body = objectMapper.writeValueAsString(new AsignarProveedoresRequest(List.of(ids)));
         return post(URL, SERVICIO_ID).contentType(MediaType.APPLICATION_JSON).content(body);
