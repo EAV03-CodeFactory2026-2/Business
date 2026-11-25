@@ -116,7 +116,7 @@ jobs:
           API=https://sonarcloud.io/api
 
           RESP=$(curl -s -u "$SONAR_TOKEN:" \
-            "$API/measures/component?component=$PROJECT_KEY&branch=$BRANCH&metricKeys=coverage,sqale_index,complexity")
+            "$API/measures/component?component=$PROJECT_KEY&branch=$BRANCH&metricKeys=coverage,sqale_index")
           if ! echo "$RESP" | jq -e '.component' >/dev/null 2>&1; then
             echo "::warning::Error de Sonar: $RESP"
             exit 0
@@ -127,7 +127,19 @@ jobs:
 
           COV=$(get coverage)
           DEBT=$(get sqale_index)
-          CX=$(get complexity)
+
+          python3 -m pip install --user lizard >/dev/null
+          python3 -m lizard src/main/java -l java -o complexity.csv >/dev/null
+          CX=$(python3 - <<'PY'
+          import csv
+
+          with open("complexity.csv", newline="", encoding="utf-8") as file:
+              rows = list(csv.reader(file))
+
+          values = [int(row[1]) for row in rows if len(row) > 1 and row[1].isdigit()]
+          print(max(values, default=0))
+          PY
+          )
 
           RESP_V=$(curl -s -u "$SONAR_TOKEN:" \
             "$API/issues/search?componentKeys=$PROJECT_KEY&branch=$BRANCH&types=VULNERABILITY&severities=CRITICAL,BLOCKER&resolved=false&ps=1")
