@@ -72,14 +72,8 @@ public class DisponibilidadService implements IDisponibilidadService {
         DiaSemana diaSemana = DiaSemana.desdeDayOfWeek(fecha.getDayOfWeek());
 
         // Consultar franjas definidas para el servicio y día de la semana
-        List<FranjaServicio> franjasDefinidas;
-        if (proveedorId != null) {
-            franjasDefinidas = franjaServicioRepository
-                    .findByServicioIdServicioAndProveedorUsuarioIdAndDiaSemana(servicioId, proveedorId, diaSemana);
-        } else {
-            franjasDefinidas = franjaServicioRepository
-                    .findByServicioIdServicioAndDiaSemana(servicioId, diaSemana);
-        }
+        List<FranjaServicio> franjasDefinidas = consultarFranjas(
+                servicioId, proveedorId, diaSemana);
 
         LocalDateTime ahora = LocalDateTime.now(clock);
         int duracionMinutos = servicio.getDuracionMinutos();
@@ -91,47 +85,10 @@ public class DisponibilidadService implements IDisponibilidadService {
         List<FranjaDisponibleResponse> disponibles = new ArrayList<>();
 
         for (FranjaServicio franja : franjasDefinidas) {
-            LocalTime slotInicio = franja.getHoraInicio();
-            LocalTime slotFin = franja.getHoraFin();
-            if (slotFin == null) {
-                slotFin = slotInicio.plusMinutes(duracionMinutos);
-            }
-
-            LocalDateTime slotInicioDt = LocalDateTime.of(fecha, slotInicio);
-            LocalDateTime slotFinDt = LocalDateTime.of(fecha, slotFin);
-
-            // No se ofrecen franjas que ya pasaron
-            boolean yaPaso = !slotInicioDt.isAfter(ahora);
-
-            if (!yaPaso) {
-                Integer idProveedor = franja.getProveedor() != null ? franja.getProveedor().getUsuarioId() : null;
-                String nombreProveedor = (franja.getProveedor() != null && franja.getProveedor().getUsuario() != null)
-                        ? franja.getProveedor().getUsuario().getNombreCompleto()
-                        : null;
-
-                // Solo las reservas confirmadas del proveedor ocupan la franja; canceladas la liberan
-                boolean ocupado = idProveedor != null && !reservaRepository.findOverlappingByProveedor(
-                        idProveedor, slotInicioDt, slotFinDt, EstadoReserva.CONFIRMADA
-                ).isEmpty();
-
-                boolean recursosDisponibles = validator.hayRecursosDisponibles(servicio, slotInicioDt, slotFinDt);
-
-                if (!ocupado && recursosDisponibles) {
-                    disponibles.add(FranjaDisponibleResponse.builder()
-                            .idFranja(franja.getIdFranja())
-                            .servicioId(servicio.getIdServicio())
-                            .nombreServicio(servicio.getNombre())
-                            .proveedorId(idProveedor)
-                            .nombreProveedor(nombreProveedor)
-                            .fecha(fecha.format(FECHA_FORMATTER))
-                            .diaSemana(diaSemana.name())
-                            .horaInicio(slotInicio.format(HORA_FORMATTER))
-                            .horaFin(slotFin.format(HORA_FORMATTER))
-                            .duracionMinutos(duracionMinutos)
-                            .precio(servicio.getPrecio())
-                            .moneda(moneda)
-                            .build());
-                }
+            FranjaDisponibleResponse disponible = crearFranjaDisponible(
+                    franja, servicio, fecha, diaSemana, duracionMinutos, moneda, ahora);
+            if (disponible != null) {
+                disponibles.add(disponible);
             }
         }
 
@@ -147,5 +104,76 @@ public class DisponibilidadService implements IDisponibilidadService {
         }
 
         return disponibles;
+    }
+
+    private List<FranjaServicio> consultarFranjas(
+            Integer servicioId, Integer proveedorId, DiaSemana diaSemana) {
+        if (proveedorId != null) {
+            return franjaServicioRepository
+                    .findByServicioIdServicioAndProveedorUsuarioIdAndDiaSemana(
+                            servicioId, proveedorId, diaSemana);
+        }
+        return franjaServicioRepository
+                .findByServicioIdServicioAndDiaSemana(servicioId, diaSemana);
+    }
+
+    private FranjaDisponibleResponse crearFranjaDisponible(
+            FranjaServicio franja,
+            Servicio servicio,
+            LocalDate fecha,
+            DiaSemana diaSemana,
+            int duracionMinutos,
+            String moneda,
+            LocalDateTime ahora) {
+        LocalTime slotInicio = franja.getHoraInicio();
+        LocalTime slotFin = franja.getHoraFin();
+        if (slotFin == null) {
+            slotFin = slotInicio.plusMinutes(duracionMinutos);
+        }
+
+        LocalDateTime slotInicioDt = LocalDateTime.of(fecha, slotInicio);
+        LocalDateTime slotFinDt = LocalDateTime.of(fecha, slotFin);
+        if (!slotInicioDt.isAfter(ahora)) {
+            return null;
+        }
+
+        Integer idProveedor = franja.getProveedor() != null
+                ? franja.getProveedor().getUsuarioId() : null;
+        String nombreProveedor = obtenerNombreProveedor(franja);
+        if (proveedorOcupado(idProveedor, slotInicioDt, slotFinDt)
+                || !validator.hayRecursosDisponibles(servicio, slotInicioDt, slotFinDt)) {
+            return null;
+        }
+
+        return FranjaDisponibleResponse.builder()
+                .idFranja(franja.getIdFranja())
+                .servicioId(servicio.getIdServicio())
+                .nombreServicio(servicio.getNombre())
+                .proveedorId(idProveedor)
+                .nombreProveedor(nombreProveedor)
+                .fecha(fecha.format(FECHA_FORMATTER))
+                .diaSemana(diaSemana.name())
+                .horaInicio(slotInicio.format(HORA_FORMATTER))
+                .horaFin(slotFin.format(HORA_FORMATTER))
+                .duracionMinutos(duracionMinutos)
+                .precio(servicio.getPrecio())
+                .moneda(moneda)
+                .build();
+    }
+
+    private String obtenerNombreProveedor(FranjaServicio franja) {
+        if (franja.getProveedor() == null || franja.getProveedor().getUsuario() == null) {
+            return null;
+        }
+        return franja.getProveedor().getUsuario().getNombreCompleto();
+    }
+
+    private boolean proveedorOcupado(
+            Integer idProveedor, LocalDateTime inicio, LocalDateTime fin) {
+        if (idProveedor == null) {
+            return false;
+        }
+        return !reservaRepository.findOverlappingByProveedor(
+                idProveedor, inicio, fin, EstadoReserva.CONFIRMADA).isEmpty();
     }
 }

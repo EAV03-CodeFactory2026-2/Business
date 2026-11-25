@@ -147,56 +147,75 @@ public class ReservaValidator implements IReservaValidator {
         }
 
         Integer negocioId = servicio.getNegocio().getIdNegocio();
-
         List<Reserva> solapadas = reservaRepository.findOverlappingConfirmedByNegocio(
                 negocioId, inicio, fin, EstadoReserva.CONFIRMADA
         );
 
         if (solapadas.isEmpty()) {
-            for (ServicioRecurso sr : recursosRequeridos) {
-                RecursoNegocio recurso = sr.getRecursoNegocio();
-                int capacidadTotal = (recurso != null && recurso.getCantidad() != null) ? recurso.getCantidad() : 0;
-                int requerida = sr.getCantidadRequerida() != null ? sr.getCantidadRequerida() : 0;
-                if (requerida > capacidadTotal) {
-                    String nombre = recurso != null ? recurso.getNombre() : "requerido";
-                    throw new SolicitudInvalidaException(
-                            String.format("No hay unidades suficientes del recurso %s para esa franja.", nombre)
-                    );
-                }
-            }
+            validarRecursosSinSolapamientos(recursosRequeridos);
             return;
         }
 
         Map<Integer, List<ServicioRecurso>> recursosPorServicio = new HashMap<>();
-
         for (ServicioRecurso sr : recursosRequeridos) {
             RecursoNegocio recurso = sr.getRecursoNegocio();
-            Integer recursoId = recurso != null ? recurso.getIdRecurso() : null;
-            int capacidadTotal = (recurso != null && recurso.getCantidad() != null) ? recurso.getCantidad() : 0;
-            int requerida = sr.getCantidadRequerida() != null ? sr.getCantidadRequerida() : 0;
+            Integer recursoId = obtenerRecursoId(recurso);
+            int ocupados = calcularRecursosOcupados(recursoId, solapadas, recursosPorServicio);
+            validarCapacidad(recurso, cantidadRequerida(sr), ocupados);
+        }
+    }
 
-            int ocupado = 0;
-            for (Reserva solapada : solapadas) {
-                Integer servicioSolapadoId = solapada.getServicioId();
-                List<ServicioRecurso> recursosDeSolapado = recursosPorServicio.computeIfAbsent(
-                        servicioSolapadoId,
-                        servicioRecursoRepository::findByServicioIdWithRecurso
-                );
-                for (ServicioRecurso srSolapado : recursosDeSolapado) {
-                    if (srSolapado.getRecursoNegocio() != null
-                            && Objects.equals(srSolapado.getRecursoNegocio().getIdRecurso(), recursoId)) {
-                        ocupado += (srSolapado.getCantidadRequerida() != null ? srSolapado.getCantidadRequerida() : 0);
-                    }
-                }
-            }
+    private void validarRecursosSinSolapamientos(List<ServicioRecurso> recursosRequeridos) {
+        for (ServicioRecurso sr : recursosRequeridos) {
+            validarCapacidad(sr.getRecursoNegocio(), cantidadRequerida(sr), 0);
+        }
+    }
 
-            if (ocupado + requerida > capacidadTotal) {
-                String nombre = recurso != null ? recurso.getNombre() : "requerido";
-                throw new SolicitudInvalidaException(
-                        String.format("No hay unidades suficientes del recurso %s para esa franja.", nombre)
-                );
+    private int calcularRecursosOcupados(
+            Integer recursoId,
+            List<Reserva> solapadas,
+            Map<Integer, List<ServicioRecurso>> recursosPorServicio) {
+        int ocupado = 0;
+        for (Reserva solapada : solapadas) {
+            List<ServicioRecurso> recursosDeSolapado = recursosPorServicio.computeIfAbsent(
+                    solapada.getServicioId(),
+                    servicioRecursoRepository::findByServicioIdWithRecurso);
+            ocupado += contarOcupacion(recursoId, recursosDeSolapado);
+        }
+        return ocupado;
+    }
+
+    private int contarOcupacion(Integer recursoId, List<ServicioRecurso> recursos) {
+        int ocupado = 0;
+        for (ServicioRecurso recurso : recursos) {
+            if (mismoRecurso(recurso, recursoId)) {
+                ocupado += cantidadRequerida(recurso);
             }
         }
+        return ocupado;
+    }
+
+    private boolean mismoRecurso(ServicioRecurso recurso, Integer recursoId) {
+        return recurso.getRecursoNegocio() != null
+                && Objects.equals(recurso.getRecursoNegocio().getIdRecurso(), recursoId);
+    }
+
+    private void validarCapacidad(RecursoNegocio recurso, int requerida, int ocupados) {
+        int capacidad = recurso != null && recurso.getCantidad() != null ? recurso.getCantidad() : 0;
+        if (ocupados + requerida <= capacidad) {
+            return;
+        }
+        String nombre = recurso != null ? recurso.getNombre() : "requerido";
+        throw new SolicitudInvalidaException(
+                String.format("No hay unidades suficientes del recurso %s para esa franja.", nombre));
+    }
+
+    private Integer obtenerRecursoId(RecursoNegocio recurso) {
+        return recurso != null ? recurso.getIdRecurso() : null;
+    }
+
+    private int cantidadRequerida(ServicioRecurso recurso) {
+        return recurso.getCantidadRequerida() != null ? recurso.getCantidadRequerida() : 0;
     }
 
     @Override
