@@ -15,9 +15,11 @@ import com.udea.business.repositories.FranjaServicioRepository;
 import com.udea.business.repositories.ReservaRepository;
 import com.udea.business.repositories.ServicioRecursoRepository;
 import com.udea.business.security.IUsuarioActual;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
@@ -26,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 
 @Component
-@RequiredArgsConstructor
 public class ReservaValidator implements IReservaValidator {
 
     public static final String MSG_SOLO_CLIENTES = "Solo los clientes pueden realizar reservas.";
@@ -37,6 +38,7 @@ public class ReservaValidator implements IReservaValidator {
     public static final String MSG_FRANJA_NO_DISPONIBLE = "Esta franja ya no está disponible. Elige otra.";
     public static final String MSG_SOLICITUD_VACIA = "La solicitud de reserva no puede estar vacía.";
     public static final String MSG_FECHA_OBLIGATORIA = "La fecha de reserva es obligatoria.";
+    public static final String MSG_VENTANA_FECHA_INVALIDA = "Solo puedes reservar hasta 30 días a partir de hoy.";
     public static final String MSG_HORA_OBLIGATORIA = "La hora de inicio es obligatoria.";
     public static final String MSG_SERVICIO_OBLIGATORIO = "El identificador del servicio es obligatorio.";
     public static final String MSG_PROVEEDOR_OBLIGATORIO = "El identificador del proveedor es obligatorio.";
@@ -44,6 +46,28 @@ public class ReservaValidator implements IReservaValidator {
     private final FranjaServicioRepository franjaServicioRepository;
     private final ReservaRepository reservaRepository;
     private final ServicioRecursoRepository servicioRecursoRepository;
+    private final Clock clock;
+
+    @Autowired
+    public ReservaValidator(
+            FranjaServicioRepository franjaServicioRepository,
+            ReservaRepository reservaRepository,
+            ServicioRecursoRepository servicioRecursoRepository,
+            Clock clock
+    ) {
+        this.franjaServicioRepository = franjaServicioRepository;
+        this.reservaRepository = reservaRepository;
+        this.servicioRecursoRepository = servicioRecursoRepository;
+        this.clock = clock != null ? clock : Clock.systemDefaultZone();
+    }
+
+    public ReservaValidator(
+            FranjaServicioRepository franjaServicioRepository,
+            ReservaRepository reservaRepository,
+            ServicioRecursoRepository servicioRecursoRepository
+    ) {
+        this(franjaServicioRepository, reservaRepository, servicioRecursoRepository, Clock.systemDefaultZone());
+    }
 
     @Override
     public void validarRolCliente(IUsuarioActual usuarioActual) {
@@ -66,6 +90,11 @@ public class ReservaValidator implements IReservaValidator {
         }
         if (request.getFecha() == null) {
             throw new SolicitudInvalidaException(MSG_FECHA_OBLIGATORIA);
+        }
+        LocalDate hoy = LocalDate.now(clock != null ? clock : Clock.systemDefaultZone());
+        LocalDate fechaLimite = hoy.plusDays(30);
+        if (request.getFecha().isBefore(hoy) || request.getFecha().isAfter(fechaLimite)) {
+            throw new SolicitudInvalidaException(MSG_VENTANA_FECHA_INVALIDA);
         }
         if (request.getFranjaId() == null) {
             if (request.getServicioId() == null) {

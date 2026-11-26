@@ -21,16 +21,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
 import static com.udea.business.services.ReservaValidator.MSG_CRUCE_CLIENTE;
 import static com.udea.business.services.ReservaValidator.MSG_FECHA_OBLIGATORIA;
+import static com.udea.business.services.ReservaValidator.MSG_VENTANA_FECHA_INVALIDA;
 import static com.udea.business.services.ReservaValidator.MSG_FRANJA_NO_DISPONIBLE;
 import static com.udea.business.services.ReservaValidator.MSG_FRANJA_RESERVADA;
 import static com.udea.business.services.ReservaValidator.MSG_HORARIO_NO_DISPONIBLE;
@@ -60,6 +65,8 @@ class ReservaValidatorTest {
     private static final Integer CLIENTE_ID = 20;
     private static final Integer FRANJA_ID = 10;
     private static final Integer NEGOCIO_ID = 5;
+    private static final ZoneId ZONA = ZoneId.of("America/Bogota");
+    private static final Instant AHORA = Instant.parse("2026-11-05T15:00:00Z");
     private static final LocalDate LUNES = LocalDate.of(2026, 11, 9);
     private static final LocalTime NUEVE = LocalTime.of(9, 0);
     private static final LocalDateTime INICIO = LocalDateTime.of(LUNES, NUEVE);
@@ -76,6 +83,9 @@ class ReservaValidatorTest {
 
     @Mock
     private IUsuarioActual usuarioActual;
+
+    @Spy
+    private Clock clock = Clock.fixed(AHORA, ZONA);
 
     @InjectMocks
     private ReservaValidator validator;
@@ -190,6 +200,45 @@ class ReservaValidatorTest {
                 .franjaId(FRANJA_ID)
                 .fecha(LUNES)
                 .build();
+
+        assertDoesNotThrow(() -> validator.validarParametrosBasicos(request));
+    }
+
+    @Test
+    void debeRechazarLaSolicitud_cuandoLaFechaEsEnElPasado() {
+        CrearReservaRequest request = solicitudPorHorario();
+        request.setFecha(LocalDate.of(2026, 11, 4)); // AHORA es 2026-11-05
+
+        SolicitudInvalidaException ex = assertThrows(SolicitudInvalidaException.class,
+                () -> validator.validarParametrosBasicos(request));
+
+        assertEquals(MSG_VENTANA_FECHA_INVALIDA, ex.getMessage());
+    }
+
+    @Test
+    void debeRechazarLaSolicitud_cuandoLaFechaSuperaLos30Dias() {
+        // CP-19: fecha a más de 30 días
+        CrearReservaRequest request = solicitudPorHorario();
+        request.setFecha(LocalDate.of(2026, 12, 6)); // AHORA es 2026-11-05, límite es 2026-12-05
+
+        SolicitudInvalidaException ex = assertThrows(SolicitudInvalidaException.class,
+                () -> validator.validarParametrosBasicos(request));
+
+        assertEquals(MSG_VENTANA_FECHA_INVALIDA, ex.getMessage());
+    }
+
+    @Test
+    void debeAceptarLaSolicitud_cuandoLaFechaEsHoy() {
+        CrearReservaRequest request = solicitudPorHorario();
+        request.setFecha(LocalDate.of(2026, 11, 5));
+
+        assertDoesNotThrow(() -> validator.validarParametrosBasicos(request));
+    }
+
+    @Test
+    void debeAceptarLaSolicitud_cuandoLaFechaEsEnElLimiteDe30Dias() {
+        CrearReservaRequest request = solicitudPorHorario();
+        request.setFecha(LocalDate.of(2026, 12, 5));
 
         assertDoesNotThrow(() -> validator.validarParametrosBasicos(request));
     }
